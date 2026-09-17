@@ -1,5 +1,5 @@
 # VideoIPath_External_Drivers
-External Driver API -  this API gives third-party developers a simpler way to build on VideoIPath's wide-ranging support for broadcast, network, and monitoring devices.
+External Driver API -  this gives third-party developers a simpler way to build on VideoIPath's wide-ranging support for broadcast, network, and monitoring devices.
 
 <img width="1940" height="520" alt="image" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
 
@@ -464,4 +464,4 @@ async def connect_forever(args):
 
 - Treat an early external-driver implementation as experimental until validated for the intended use case.
 
-[^1]: [Nevion VideoIPath page](https://nevion.com/videoipath/)
+[Nevion VideoIPath](https://nevion.com/videoipath)
