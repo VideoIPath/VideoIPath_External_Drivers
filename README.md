@@ -3,7 +3,7 @@ External Driver API -  this API gives third-party developers a simpler way to bu
 
 <img width="1940" height="520" alt="image" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
 
-# 1. Purpose and Scope
+## 1. Purpose and Scope
 
 This guide explains how to build a custom VideoIPath external driver as a standalone Python process. The driver translates between a device API and the VideoIPath external-driver protocol.
 
@@ -36,7 +36,7 @@ VideoIPath  <-->  External driver  <-->  Device
 |Respond to every request|Depend on another VIP driver|
 |Report local changes asynchronously|Silently ignore unsupported requests|
 
-# 2. Communication model
+## 2. Communication model
 
 The external process is the WebSocket client. It connects to the VideoIPath backend virtual IP and exchanges JSON messages over HTTP WebSockets, with TLS support and bearer-token authentication.
 
@@ -95,7 +95,7 @@ Message envelope
 
 For request/response messages, preserve the request message_id. Normally, the response also uses the same message_type. Asynchronous driver-originated messages use a null message_id.
 
-# 3. Recommended design
+## 3. Recommended design
 
 |driver.py|   |
 |------------------|----------------------| 
@@ -109,7 +109,7 @@ Use registries rather than individual variables.
 
 This lets the same code advertise, read, validate, update, and log many parameters.
 
-# 4. Parameter Class and Registry
+## 4. Parameter Class and Registry
 ```python
 from dataclasses import dataclass
 
@@ -185,7 +185,7 @@ self.parameters = {
 ```
 
 
-# 5. Structure and Discovery
+## 5. Structure and Discovery
 
 VideoIPath initializes the external driver by requesting get_structure. 
 
@@ -229,7 +229,7 @@ if msg_type == "get_structure":
 ```
 
 
-# 6. Reading Dynamic Values
+## 6. Reading Dynamic Values
 
 Respect the requested IDs when they are supplied. This makes the handler work for one value or many values without returning unrelated state.
 ```python
@@ -258,7 +258,7 @@ if msg_type == "get_dynamic_values":
 ```
 
 
-# 7. Writing Dynamic Values
+## 7. Writing Dynamic Values
 ```python
 def set_parameter_values(self, values: dict) -> tuple[dict, dict]:
     failures = {}
@@ -316,7 +316,7 @@ async def send_async_parameter_update(self, location, values):
 
 Use the exact asynchronous message_type defined by the implemented SPEC-23 backend schema. The example above follows the simulator convention used in this guide.
 
-# 8. Keepalive, Alarms, and Errors
+## 8. Keepalive, Alarms, and Errors
 ```python
 if msg_type == "keepalive":
     await self.tx(dict(request))
@@ -344,7 +344,7 @@ await self.tx({
 
 Do not answer an incoming error with another error. Doing so can create an error-response loop.
 
-# 9. Endpoint IP Configuration
+## 9. Endpoint IP Configuration
 
 When a connection is made, VideoIPath may send set_ipt_configurations containing sender and receiver configurations. Store the accepted configuration and return separate sender and receiver error arrays.
 ```python
@@ -390,7 +390,7 @@ if msg_type == "check_ipt_configuration":
 ```
 
 
-# 10. Connection Loop
+## 10. Connection Loop
 ```python
 async def connect_forever(args):
     ssl_context = ssl.create_default_context() if args.url.startswith("wss://") else None
@@ -420,7 +420,7 @@ async def connect_forever(args):
 ```
 
 
-# 11. Development and test Sequence
+## 11. Development and test Sequence
 
 | Step | Milestone | Verification |
 | ---- | --------- | ------------ |
@@ -432,7 +432,7 @@ async def connect_forever(args):
 | 6 | Device integration | Replace simulated state with real device API calls. |
 | 7 | Resilience | Add timeouts, structured logging, health checks, and persistent local state only where necessary. |
 
-# 12. Debugging Checklist
+## 12. Debugging Checklist
 
 - Log every RX and TX message with message_id and message_type.
 
@@ -450,7 +450,7 @@ async def connect_forever(args):
 
 - Compare requested IPT configuration with actual device state before reporting success in production.
 
-# 13. Deployment Notes
+## 13. Deployment Notes
 
 - Package the driver as a small standalone service or container.
 
@@ -464,4 +464,4 @@ async def connect_forever(args):
 
 - Treat an early external-driver implementation as experimental until validated for the intended use case.
 
-[^1]: https://nevion.com/videoipath/
+[^1]: [Nevion VideoIPath page](https://nevion.com/videoipath/)
