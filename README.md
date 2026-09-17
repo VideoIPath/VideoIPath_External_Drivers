@@ -7,53 +7,42 @@ External Driver API -  this API gives third-party developers a simpler way to bu
 
 This guide explains how to build a custom VideoIPath external driver as a standalone Python process. The driver translates between a device API and the VideoIPath external-driver protocol.
 
+>[!NOTE]
 VideoIPath  <-->  External driver  <-->  Device
 
-External drivers can expose
+### External drivers can expose
 
-Device structure and identification
+- Device structure and identification
 
-Modules, senders, receivers, and network interfaces
+- Modules, senders, receivers, and network interfaces
 
-Read/write parameters values. 
+- Read/write parameters values. 
 
-GPIO input and outputs
+- GPIO input and outputs
 
-Active alarms and asynchronous alarm updates
+- Active alarms and asynchronous alarm updates
 
-Sender SDP
+- Sender SDP
 
-Sender and receiver IP transport configuration
+- Sender and receiver IP transport configuration
 
-Keep the driver focused
+### Keep the driver focused
 
-The driver should
-
-The driver should not
-
-Connect to the VIP backend as a client
-
-Access or write to the VIP database
-
-Translate protocol and device state
-
-Implement VIP connection-management logic
-
-Respond to every request
-
-Depend on another VIP driver
-
-Report local changes asynchronously
-
-Silently ignore unsupported requests
+|The driver should | The driver should not|
+|------------------|----------------------| 
+|Connect to the VIP backend as a client|Access or write to the VIP database|
+|Translate protocol and device state|Implement VIP connection-management logic|
+|Respond to every request|Depend on another VIP driver|
+|Report local changes asynchronously|Silently ignore unsupported requests|
 
 # 2. Communication model
 
 The external process is the WebSocket client. It connects to the VideoIPath backend virtual IP and exchanges JSON messages over HTTP WebSockets, with TLS support and bearer-token authentication.
 
+```ruby
 wss://<vip-address>/x-driver/v1?node_id=<stable-uuid>
 Authorization: Bearer <token>
-
+```
 Token is created in VideoIPath cli. A token can be used by multiple devices.
 
 Connection requirements
