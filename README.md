@@ -44,7 +44,34 @@ The external process is the WebSocket client. It connects to the VideoIPath back
 wss://<vip-address>/x-driver/v1?node_id=<stable-uuid>
 Authorization: Bearer <token>
 ```
+
+> [!WARNING]
 Token is created in VideoIPath cli. A token can be used by multiple devices.
+
+```code
+token --help
+  -h, --help   Show help message
+
+Subcommand: list
+Usage: token list
+  -h, --help   Show help message
+
+Subcommand: gen
+Usage: token gen
+  -h, --help   Show help message
+
+Subcommand: delete
+Usage: token delete [token]
+  -h, --help   Show help message
+
+ trailing arguments:
+  token (required)   The token to remove
+```
+Example
+```shell
+token gen
+[INFO] : Successfully generated new token: "jIyxgCzWW2BZxwDM"
+```
 
 ### Connection requirements
 
