@@ -3,6 +3,7 @@ External Driver API -  this gives third-party developers a simpler way to build 
 
 <img width="1940" height="520" alt="image" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
 
+
 ## 1. Purpose and Scope
 
 This guide explains how to build a custom VideoIPath external driver as a standalone Python process. The driver translates between a device API and the VideoIPath external-driver protocol.
@@ -39,13 +40,16 @@ VideoIPath  <-->  External driver  <-->  Device
 ## 2. Communication model
 
 The external process is the WebSocket client. It connects to the VideoIPath backend virtual IP and exchanges JSON messages over HTTP WebSockets, with TLS support and bearer-token authentication.
-
-```ruby
-wss://<vip-address>/x-driver/v1?node_id=<stable-uuid>
-Authorization: Bearer <token>
+```html
+wss://<virtual IP>/x-driver/v1?node_id=<node ID>
+```
+With an HTTP header
+```html
+Authorization: Bearer <token>.
 ```
 
-> [!WARNING]
+
+> [!IMPORTANT]
 Token is created in VideoIPath cli. A token can be used by multiple devices.
 
 ```code
