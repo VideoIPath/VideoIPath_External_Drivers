@@ -28,7 +28,8 @@ VideoIPath  <-->  External driver  <-->  Device
 
 ### Keep the driver focused
 
-|The driver should | The driver should not|
+
+|$\color{green}{\textbf{\textsf{The driver should}}}$|$\color{red}{\textbf{\textsf{The driver should not}}}$|
 |------------------|----------------------| 
 |Connect to the VIP backend as a client|Access or write to the VIP database|
 |Translate protocol and device state|Implement VIP connection-management logic|
@@ -45,60 +46,44 @@ Authorization: Bearer <token>
 ```
 Token is created in VideoIPath cli. A token can be used by multiple devices.
 
-Connection requirements
+### Connection requirements
 
-Use a stable UUID for node_id. Keep it unchanged across restarts for the same device.
+- Use a stable UUID for node_id. Keep it unchanged across restarts for the same device.
 
-Reconnect automatically after an unexpected disconnect.
+- Reconnect automatically after an unexpected disconnect.
 
-Disable library-level WebSocket ping messages if the protocol uses application keepalives.
+- Disable library-level WebSocket ping messages if the protocol uses application keepalives.
 
-Echo keepalive requests exactly and monitor inbound traffic for loss of connectivity.
+- Echo keepalive requests exactly and monitor inbound traffic for loss of connectivity.
 
 Message envelope
-
+```json
 {
   "message_id": 123,
   "message_type": "get_structure",
   "data": null
 }
-
+```
 
 
 For request/response messages, preserve the request message_id. Normally, the response also uses the same message_type. Asynchronous driver-originated messages use a null message_id.
 
 # 3. Recommended design
 
-driver.py
-
-
-
-Parameter
-
-validation and structure metadata
-
-DeviceModel
-
-parameters, alarms, endpoint state
-
-Driver 
-
-WebSocket RX/TX and dispatch
-
-Protocol handlers
-
-get_structure, alarms, values, IPT
-
-Connection loop
-
-TLS, authentication, reconnect
+|driver.py|   |
+|------------------|----------------------| 
+| Parameter|validation and structure metadata|
+|DeviceModel|parameters, alarms, endpoint state|
+|Driver|WebSocket RX/TX and dispatch|
+|Protocol handlers|get_structure, alarms, values, IPT|
+|Connection loop|TLS, authentication, reconnect|
 
 Use registries rather than individual variables. 
 
 This lets the same code advertise, read, validate, update, and log many parameters.
 
 # 4. Parameter Class and Registry
-
+```python
 from dataclasses import dataclass
 
 @dataclass
@@ -151,11 +136,11 @@ class Parameter:
                 "gpo_capable": self.writable,
             },
         }
-
+```
 
 
 Create the registry
-
+```python
 self.parameters = {
     "level": Parameter(
         id="level", label="Level",
@@ -170,7 +155,7 @@ self.parameters = {
         min_value=0, max_value=20,
     ),
 }
-
+```
 
 
 # 5. Structure and Discovery
@@ -178,7 +163,7 @@ self.parameters = {
 VideoIPath initializes the external driver by requesting get_structure. 
 
 Build dynamic-value definitions directly from the registry so the structure and runtime handlers cannot drift apart.
-
+```python
 def parameter_definitions(self) -> dict:
     return {
         parameter.id: parameter.definition()
@@ -205,7 +190,8 @@ def build_structure(self) -> dict:
             }
         ],
     }
-
+```
+```python
 if msg_type == "get_structure":
     await self.tx({
         "message_id": msg_id,
@@ -213,13 +199,13 @@ if msg_type == "get_structure":
         "data": self.build_structure(),
     })
     return
-
+```
 
 
 # 6. Reading Dynamic Values
 
 Respect the requested IDs when they are supplied. This makes the handler work for one value or many values without returning unrelated state.
-
+```python
 def get_parameter_values(self, requested_ids=None) -> dict:
     ids = requested_ids or list(self.parameters)
     result = {}
@@ -242,11 +228,11 @@ if msg_type == "get_dynamic_values":
         "data": self.get_parameter_values(requested_ids),
     })
     return
-
+```
 
 
 # 7. Writing Dynamic Values
-
+```python
 def set_parameter_values(self, values: dict) -> tuple[dict, dict]:
     failures = {}
     changed = {}
@@ -284,11 +270,11 @@ if msg_type == "set_dynamic_values":
             values=changed,
         )
     return
+```
 
 
-
-Asynchronous parameter updates
-
+### Asynchronous parameter updates
+```python
 async def send_async_parameter_update(self, location, values):
     await self.tx({
         "message_id": None,
@@ -298,13 +284,13 @@ async def send_async_parameter_update(self, location, values):
             "values": values,
         },
     })
-
+```
 
 
 Use the exact asynchronous message_type defined by the implemented SPEC-23 backend schema. The example above follows the simulator convention used in this guide.
 
 # 8. Keepalive, Alarms, and Errors
-
+```python
 if msg_type == "keepalive":
     await self.tx(dict(request))
     return
@@ -326,7 +312,7 @@ await self.tx({
     "message_type": "error",
     "data": f"Unsupported request: {msg_type}",
 })
-
+```
 
 
 Do not answer an incoming error with another error. Doing so can create an error-response loop.
@@ -334,7 +320,7 @@ Do not answer an incoming error with another error. Doing so can create an error
 # 9. Endpoint IP Configuration
 
 When a connection is made, VideoIPath may send set_ipt_configurations containing sender and receiver configurations. Store the accepted configuration and return separate sender and receiver error arrays.
-
+```python
 self.sender_configs = {}
 self.receiver_configs = {}
 
@@ -361,11 +347,11 @@ if msg_type == "set_ipt_configurations":
         },
     })
     return
+```
 
 
-
-Configuration verification
-
+### Configuration verification
+```python
 if msg_type == "check_ipt_configuration":
     # Production code should compare the requested and actual device state.
     await self.tx({
@@ -374,11 +360,11 @@ if msg_type == "check_ipt_configuration":
         "data": True,
     })
     return
-
+```
 
 
 # 10. Connection Loop
-
+```python
 async def connect_forever(args):
     ssl_context = ssl.create_default_context() if args.url.startswith("wss://") else None
     if ssl_context and args.insecure:
@@ -404,89 +390,51 @@ async def connect_forever(args):
             logging.exception("Driver disconnected")
 
         await asyncio.sleep(5)
-
+```
 
 
 # 11. Development and test Sequence
 
-Step
-
-Milestone
-
-Verification
-
-1
-
-Connection
-
-Confirm TLS, bearer authentication, node_id, and reconnect.
-
-2
-
-Discovery
-
-Handle keepalive and get_structure.
-
-3
-
-Monitoring
-
-Return alarms and read dynamic values.
-
-4
-
-Control
-
-Validate set_dynamic_values and log changes.
-
-5
-
-Routing
-
-Implement set_ipt_configurations and configuration checks.
-
-6
-
-Device integration
-
-Replace simulated state with real device API calls.
-
-7
-
-Resilience
-
-Add timeouts, structured logging, health checks, and persistent local state only where necessary.
+| Step | Milestone | Verification |
+| ---- | --------- | ------------ |
+| 1 | Connection | Confirm TLS, bearer authentication, node_id, and reconnect. |
+| 2 | Discovery | Handle keepalive and get_structure. |
+| 3 | Monitoring | Return alarms and read dynamic values. |
+| 4 | Control | Validate set_dynamic_values and log changes. |
+| 5 | Routing | Implement set_ipt_configurations and configuration checks. |
+| 6 | Device integration | Replace simulated state with real device API calls. |
+| 7 | Resilience | Add timeouts, structured logging, health checks, and persistent local state only where necessary. |
 
 # 12. Debugging Checklist
 
-Log every RX and TX message with message_id and message_type.
+- Log every RX and TX message with message_id and message_type.
 
-Pretty-print full JSON only when detailed troubleshooting is enabled.
+- Pretty-print full JSON only when detailed troubleshooting is enabled.
 
-Confirm every request receives exactly one response.
+- Confirm every request receives exactly one response.
 
-Never respond to an incoming error message.
+- Never respond to an incoming error message.
 
-Validate integer values strictly. In Python, bool is a subclass of int, so reject boolean explicitly.
+- Validate integer values strictly. In Python, bool is a subclass of int, so reject boolean explicitly.
 
-Keep structure IDs stable and unique within their scope.
+- Keep structure IDs stable and unique within their scope.
 
-Use --insecure only in controlled test environments.
+- Use --insecure only in controlled test environments.
 
-Compare requested IPT configuration with actual device state before reporting success in production.
+- Compare requested IPT configuration with actual device state before reporting success in production.
 
 # 13. Deployment Notes
 
-Package the driver as a small standalone service or container.
+- Package the driver as a small standalone service or container.
 
-Run it as a non-root user.
+- Run it as a non-root user.
 
-Rotate logs and avoid storing secrets in source code.
+- Rotate logs and avoid storing secrets in source code.
 
-Add a health check when deployed in a container.
+- Add a health check when deployed in a container.
 
-The external process is responsible for its own deployment, operation, and resilience.
+- The external process is responsible for its own deployment, operation, and resilience.
 
-Treat an early external-driver implementation as experimental until validated for the intended use case.
+- Treat an early external-driver implementation as experimental until validated for the intended use case.
 
 [^1]: https://nevion.com/videoipath/
