@@ -48,7 +48,8 @@ The Driver API provides external drivers with the following capabilities:
 - Expose parameters for use within the Panel App.
 
 $\Large\color{green}{\textsf{Architecture}}$
-<img width="964" height="504" alt="Architecture" src="https://github.com/user-attachments/assets/49ec3af9-8820-4ce0-a507-44fd69ed090f" />
+<img width="965" height="503" alt="Architecture" src="https://github.com/user-attachments/assets/3722dda5-d21a-45cf-b8b4-7a671b85d09d" />
+
 
 
 $\Large\color{green}{\textsf{Redundancy}}$
