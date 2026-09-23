@@ -16,8 +16,8 @@ External Driver API -  this gives third-party developers a simpler way to build 
 
 
 
-
 $\Large\color{green}{\textsf{ What is an External Driver?}}$
+
 
 An external driver is a piece of code or a process that functions as middleware, facilitating communication between VideoIPath and a media device.
 
@@ -65,21 +65,26 @@ $\Large\color{green}{\textsf{What External Drivers Can Do}}$
 
 $\Large\color{green}{\textsf{Limitation of Driver API}}$
 
-Receive switch configuration
+**Receive switch configuration**
 - External driver is for media endpoint devices
-Device maintenance functions
+
+**Device maintenance functions**
 - Backup and restore of configuration
 - Device firmware upgrade
-- Metrics
-Reporting metrics is not supported.
 
-Deployment
+**Metrics**
+- Reporting metrics is not supported.
+
+**Deployment**
 - VideoIPath do not handle deployment of the external driver
-Automatic driver redundancy
+
+**Automatic driver redundancy**
 - External driver is responsible for reconnecting to new server under VideoIPath node failover.
-Automatic network redundancy
+
+**Automatic network redundancy**
 - External driver is responsible for redundancy towards media device
-Use of VideoIPath database
+
+**Use of VideoIPath database**
 - The VideoIPath internal database is a protected environment. External driver can not write to it for any reasons
 
 
