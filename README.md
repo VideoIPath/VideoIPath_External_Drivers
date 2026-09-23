@@ -1,4 +1,14 @@
 # VideoIPath_External_Drivers
+About This Repository
+This guide is provided by Nevion to encourage 3rd party developers to create and contribute to the VideoIPath External Drivers repository.
+
+Please read the Code of Conduct and Contributing Guidelines before getting started.
+
+Disclaimer
+This content is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall Nevion or its contributors be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the content or the use of or other dealings in the content.
+
+
+
 External Driver API -  this gives third-party developers a simpler way to build on VideoIPath's wide-ranging support for broadcast, network, and monitoring devices.
 
 <img width="1940" height="520" alt="image" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
