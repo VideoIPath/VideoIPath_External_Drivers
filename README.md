@@ -1,5 +1,8 @@
 # VideoIPath_External_Drivers
-#### About This Repository
+<img width="1940" height="520" alt="image" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
+
+$\Large\color{green}{\textsf{About This Repository}}$
+
 This guide is provided by Nevion to encourage 3rd party developers to create and contribute to the VideoIPath External Drivers repository.
 
 Please read the Code of Conduct and Contributing Guidelines before getting started.
@@ -11,7 +14,74 @@ This content is provided "as is", without warranty of any kind, express or impli
 
 External Driver API -  this gives third-party developers a simpler way to build on VideoIPath's wide-ranging support for broadcast, network, and monitoring devices.
 
-<img width="1940" height="520" alt="image" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
+
+
+
+$\Large\color{green}{\textsf{ What is an External Driver?}}$
+
+An external driver is a piece of code or a process that functions as middleware, facilitating communication between VideoIPath and a media device.
+
+The associated code is not hosted within VideoIPath and may be developed by customers independently of the VideoIPath release cycle.
+
+Integration with VideoIPath is achieved via a self-registration mechanism. Following registration, the driver requires approval before it becomes available for use within the VideoIPath user interface.
+
+External drivers may be implemented in any programming language and support a variety of deployment methods.
+
+Accelerated driver development facilitates the delivery of proofs of concept (PoCs) and demonstrations.
+
+System integrators are empowered to develop custom drivers, allowing for enhanced customization and expanding revenue opportunities within projects.
+
+Over time, external drivers that prove reliable and effective may be promoted to official driver status.
+
+$\Large\color{green}{\textsf{Driver API for External Drivers}}$
+
+The Driver API provides external drivers with the following capabilities:
+
+- Register with VideoIPath through a unique authentication token.
+
+- Advertise Ethernet ports, sources, and destinations, along with inter-device topology.
+
+- Advertise GPI/logic inputs and outputs.
+
+- Raise alarms at the device, port, and endpoint levels.
+
+- Expose parameters for use within the Panel App.
+
+$\Large\color{green}{\textsf{Architecture}}$
+<img width="964" height="504" alt="Architecture" src="https://github.com/user-attachments/assets/49ec3af9-8820-4ce0-a507-44fd69ed090f" />
+
+
+$\Large\color{green}{\textsf{Redundancy}}$
+<img width="965" height="502" alt="Redundancy" src="https://github.com/user-attachments/assets/811bc383-43f1-4282-bd3d-2c8b556bacf0" />
+
+$\Large\color{green}{\textsf{What External Drivers Can Do}}$
+
+- General structure and device information (used to create modules, topology, GPIO inventory, known parameters, etc.)
+- IP RX/TX configuration of reported senders/receivers (all transceiver functionality as format data + 1/2 IP streams).
+- Read SDP from reported senders marked as supporting SDP.
+- GPIO and parameter control via unified value APIs (set value, read value, and async driver value updates).
+- Alarms (fetch all alarms, and async alarm updates).
+
+
+$\Large\color{green}{\textsf{Limitation of Driver API}}$
+
+Receive switch configuration
+- External driver is for media endpoint devices
+Device maintenance functions
+- Backup and restore of configuration
+- Device firmware upgrade
+- Metrics
+Reporting metrics is not supported.
+
+Deployment
+- VideoIPath do not handle deployment of the external driver
+Automatic driver redundancy
+- External driver is responsible for reconnecting to new server under VideoIPath node failover.
+Automatic network redundancy
+- External driver is responsible for redundancy towards media device
+Use of VideoIPath database
+- The VideoIPath internal database is a protected environment. External driver can not write to it for any reasons
+
 
 
 ## 1. Purpose and Scope
