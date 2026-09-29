@@ -118,9 +118,9 @@ VideoIPath  <-->  External driver  <-->  Device
 
 |$\color{green}{\textbf{\textsf{The driver should}}}$|$\color{red}{\textbf{\textsf{The driver should not}}}$|
 |------------------|----------------------| 
-|Connect to the VIP backend as a client|Access or write to the VIP database|
-|Translate protocol and device state|Implement VIP connection-management logic|
-|Respond to every request|Depend on another VIP driver|
+|Connect to the VideoIPath backend as a client|Access or write to the VideoIPath database|
+|Translate protocol and device state|Implement VideoIPath connection-management logic|
+|Respond to every request|Depend on another VideoIPath driver|
 |Report local changes asynchronously|Silently ignore unsupported requests|
 
 ## 2. Communication model
