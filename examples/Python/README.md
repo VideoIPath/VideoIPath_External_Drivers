@@ -171,7 +171,7 @@ A string parameter can optionally define an allowed `values` list:
 }
 ```
 
-> **Important:** The supplied code contains `"VidoeIPath"` in the allowed values but uses `"VideoIPath"` as the default. Correct the spelling in `values` as shown above so the default is also a valid selectable value.
+> **Important:** The supplied code contains `"VideoIPath"` in the allowed values but uses `"VideoIPath"` as the default. Correct the spelling in `values` as shown above so the default is also a valid selectable value.
 
 ## Protocol Messages
 
