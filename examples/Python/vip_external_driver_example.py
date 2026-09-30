@@ -192,7 +192,7 @@ def build_device_structure():
                         "label": "Receiver audio",
                         "dynamic_values": {},
                         "topology_info": {
-                            "format_type": "Video",
+                            "format_type": "Audio",
                             "sdp_support": True,
                             "sips": False,
                             "interface_options": [
