@@ -156,13 +156,14 @@ new records and replacements before mutation, reserving the maximum-width reply
 ID/revision envelope. Capacity rejection preserves the previous complete pollable
 snapshot and does not increment its revision.
 
-Sender SDP supports **single-stream H.264 or H.265 RTP video**, with an explicit
+Sender SDP supports **single-stream or two-leg DUP H.264/H.265 RTP video**, with an explicit
 dynamic `format.attributes.rtp_payload_type` from 96 through 127 and no other
 format attributes. Codec names and payload numbers come from observed state;
 IPv4 multicast includes its TTL. Unknown/missing codecs or payloads, additional
 format attributes, audio pairs, receiver-source fields, supplied SDP overrides,
-SRT, FEC, and spare streams return `Failure::Unsupported`. In particular, no
-invented raw/RTP96 fallback or unsupported DUP group is emitted. A disabled sender
+SRT, FEC, and identical full main/spare paths return `Failure::Unsupported`. Paired
+state produces unique media IDs and one DUP group; no invented raw/RTP96 fallback
+is emitted. A disabled sender
 returns null. This intentionally narrow subset is not a complete ST 2110 SDP
 generator. No SRT session, FEC packets, media, or device timing is produced.
 Advanced media validation belongs
@@ -181,3 +182,7 @@ interleaving, and socket permissions/ownership. Regression cases cover old-value
 escaped alarm snapshot capacity, truthful codec/payload SDP and unsupported
 transport combinations, and stale relays rechecked after a confirmed write.
 These tests do not contact VideoIPath.
+
+`cargo test --locked --test sdp_redundancy` exercises actual paired sender-to-receiver
+round trips, section reordering, coherent snapshots and negative cases. See the
+[main/spare walkthrough](REDUNDANT_SDP.md) for the narrow subset and group-ID policy.

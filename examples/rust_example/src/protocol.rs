@@ -289,14 +289,14 @@ pub fn media_state(
                 if port["topology_info"]["sdp_support"] != true {
                     return Err(Failure::Unsupported);
                 }
-                // A one-media SDP cannot describe the spare path in this subset.
-                // SIPS configurations without SDP remain supported independently.
-                if spare.is_some() || srt.is_some() {
+                // These RTP descriptions do not model SRT or FEC repair streams.
+                if srt.is_some() || fec_enabled {
                     return Err(Failure::Unsupported);
                 }
-                validate_sdp(
+                validate_sdp_with_spare(
                     s.as_str().ok_or(Failure::Type)?,
                     &main,
+                    spare.as_ref(),
                     &format,
                     port["topology_info"]["format_type"].as_str(),
                 )
@@ -599,9 +599,170 @@ pub fn validate_sdp(
     format: &Format,
     advertised_format: Option<&str>,
 ) -> Result<String, Failure> {
+    validate_sdp_with_spare(sdp, stream, None, format, advertised_format)
+}
+
+/// RFC 5888 mids identify sections independently of their occurrence order.
+/// This simulator maps the first/second DUP group IDs to main/spare respectively;
+/// RFC 7104 itself does not define SPEC-23 main/spare or transmission precedence.
+/// Exactly two H264/H265 streams with the same payload mapping are supported.
+/// Different PTs are legal in RFC 7104, but require per-leg format state we lack.
+pub fn validate_sdp_with_spare(
+    sdp: &str,
+    main: &Stream,
+    spare: Option<&Stream>,
+    format: &Format,
+    advertised_format: Option<&str>,
+) -> Result<String, Failure> {
     if sdp.len() > 65536 || sdp.contains('\0') {
         return Err(Failure::Range);
     }
+    let mut session = Vec::new();
+    let mut sections: Vec<Vec<&str>> = Vec::new();
+    for (index, line) in sdp
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .enumerate()
+    {
+        if index >= 256 || line.len() > 2048 {
+            return Err(Failure::Range);
+        }
+        if line.starts_with("m=") {
+            if sections.len() >= 2 {
+                return Err(Failure::Unsupported);
+            }
+            sections.push(Vec::new());
+        }
+        if let Some(section) = sections.last_mut() {
+            // Session-only fields must not silently acquire media scope.
+            if ["v=", "o=", "s=", "t=", "a=group:"]
+                .iter()
+                .any(|p| line.starts_with(p))
+            {
+                return Err(Failure::Invalid);
+            }
+            section.push(line);
+        } else {
+            if line.starts_with("a=mid:") || line.starts_with("a=rtpmap:") {
+                return Err(Failure::Invalid);
+            }
+            session.push(line);
+        }
+    }
+    let mut mids = Vec::new();
+    for section in &sections {
+        let ids: Vec<_> = section
+            .iter()
+            .filter_map(|line| line.strip_prefix("a=mid:"))
+            .collect();
+        if ids.len() > 1 || ids.first().is_some_and(|id| !sdp_token(id)) {
+            return Err(Failure::Invalid);
+        }
+        mids.push(ids.first().copied());
+    }
+    let groups: Vec<_> = session
+        .iter()
+        .filter_map(|line| line.strip_prefix("a=group:"))
+        .collect();
+    let Some(spare) = spare else {
+        if !groups.is_empty() || sections.len() != 1 {
+            return Err(Failure::Unsupported);
+        }
+        return validate_single_sdp(sdp, main, format, advertised_format);
+    };
+    // Two copies of the exact same path do not describe path redundancy. Equal
+    // addresses on distinct interfaces remain legitimate isolated-network legs.
+    if main == spare {
+        return Err(Failure::Unsupported);
+    }
+    if sections.len() != 2 || groups.len() != 1 || advertised_format != Some("Video") {
+        return Err(Failure::Unsupported);
+    }
+    let group: Vec<_> = groups[0].split_whitespace().collect();
+    if group.len() != 3
+        || group[0] != "DUP"
+        || group[1] == group[2]
+        || !group[1..].iter().all(|id| sdp_token(id))
+        || mids[0].is_none()
+        || mids[1].is_none()
+        || mids[0] == mids[1]
+    {
+        return Err(Failure::Invalid);
+    }
+    // No session connection/filter inheritance for the two-leg subset: every
+    // leg explicitly describes its own destination and optional source filter.
+    let header: Vec<_> = session
+        .iter()
+        .copied()
+        .filter(|line| !line.starts_with("a=group:"))
+        .collect();
+    if header
+        .iter()
+        .any(|line| !["v=", "o=", "s=", "t="].iter().any(|p| line.starts_with(p)))
+    {
+        return Err(Failure::Unsupported);
+    }
+    let mut normalized = format!(
+        "{}\r\na=group:DUP {} {}\r\n",
+        header.join("\r\n"),
+        group[1],
+        group[2]
+    );
+    let mut previous_mapping = None;
+    for (id, stream) in group[1..].iter().zip([main, spare]) {
+        let index = mids
+            .iter()
+            .position(|mid| *mid == Some(*id))
+            .ok_or(Failure::Mismatch)?;
+        let section = &sections[index];
+        let text = format!("{}\r\n{}\r\n", header.join("\r\n"), section.join("\r\n"));
+        let checked = validate_single_sdp(&text, stream, format, advertised_format)?;
+        let mapping = section
+            .iter()
+            .find_map(|line| line.strip_prefix("a=rtpmap:"))
+            .ok_or(Failure::Unsupported)?;
+        let (pt, encoding) = mapping.split_once(' ').ok_or(Failure::Invalid)?;
+        if !["H264/90000", "H265/90000"].contains(&encoding) {
+            return Err(Failure::Unsupported);
+        }
+        if previous_mapping.is_some_and(|previous| previous != (pt, encoding)) {
+            return Err(Failure::Mismatch);
+        }
+        previous_mapping = Some((pt, encoding));
+        // Normalize attribute order and source-filter whitespace as well as m=
+        // order. Checks compare independently read state to this canonical form.
+        let mut attributes: Vec<_> = checked
+            .lines()
+            .filter(|line| line.starts_with("a="))
+            .collect();
+        attributes.sort_unstable();
+        normalized.push_str(section[0]);
+        normalized.push_str("\r\n");
+        normalized.push_str(
+            section
+                .iter()
+                .find(|line| line.starts_with("c="))
+                .ok_or(Failure::Invalid)?,
+        );
+        normalized.push_str("\r\n");
+        normalized.push_str(&attributes.join("\r\n"));
+        normalized.push_str("\r\n");
+    }
+    Ok(normalized)
+}
+
+fn sdp_token(value: &str) -> bool {
+    // RFC 4566 token (used by RFC 5888 identification-tag), ASCII only.
+    !value.is_empty() && value.bytes().all(|b| matches!(b, 0x21 | 0x23..=0x27 | 0x2a..=0x2b | 0x2d..=0x2e | 0x30..=0x39 | 0x41..=0x5a | 0x5e..=0x7e))
+}
+
+fn validate_single_sdp(
+    sdp: &str,
+    stream: &Stream,
+    format: &Format,
+    advertised_format: Option<&str>,
+) -> Result<String, Failure> {
     let lines: Vec<_> = sdp
         .lines()
         .map(str::trim)
@@ -704,7 +865,7 @@ pub fn validate_sdp(
             "t=",
             "m=",
             "a=rtpmap:",
-            "a=source-filter: incl ",
+            "a=source-filter:",
             "a=mid:",
         ]
         .iter()
@@ -757,7 +918,11 @@ pub fn validate_sdp(
                 return Err(Failure::Mismatch);
             }
         }
-        if let Some(filter) = line.strip_prefix("a=source-filter: incl ") {
+        if let Some(filter) = line.strip_prefix("a=source-filter:") {
+            let filter = filter
+                .trim_start()
+                .strip_prefix("incl ")
+                .ok_or(Failure::Unsupported)?;
             let f: Vec<_> = filter.split_whitespace().collect();
             if f.len() != 4
                 || f[0] != "IN"
@@ -769,6 +934,21 @@ pub fn validate_sdp(
             }
         }
     }
+    let lines: Vec<_> = lines
+        .iter()
+        .map(|line| {
+            if let Some(filter) = line.strip_prefix("a=source-filter:") {
+                // Comparison is semantic: permitted whitespace must not produce
+                // perpetual drift after the target normalizes a source filter.
+                format!(
+                    "a=source-filter:{}",
+                    filter.split_whitespace().collect::<Vec<_>>().join(" ")
+                )
+            } else {
+                (*line).to_owned()
+            }
+        })
+        .collect();
     Ok(format!("{}\r\n", lines.join("\r\n")))
 }
 

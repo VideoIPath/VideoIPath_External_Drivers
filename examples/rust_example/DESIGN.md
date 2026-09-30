@@ -49,6 +49,21 @@ setting `DRIVER_CONFIGURATION_ORDER` selects `senders_first` (default),
 `receivers_first` or `all` within that same fixture; it does not select a different
 device personality.
 
+### Version 0.2 additions without new runtime owners
+
+| Operation | Owner / deadline / retry | Failure and state contract | Evidence |
+| --- | --- | --- | --- |
+| Paired sender SDP read | Simulator generates from one stored main/spare snapshot; existing ordinary deadline; no write/retry | Unsupported format returns an error, disabled state null; no fabricated media data | Actual Unix read and receiver round trip |
+| Paired receiver SDP apply/check | Protocol validates group/paths before handler; existing IPT/check deadlines and no handler retries | Invalid data cannot alter target state; valid pair is one coherent domain value with independent readback | Group/mid/path negatives, reordering, drift/repair and concurrent snapshot tests |
+| Alternative receiver selection | Registry adds `rx-alt` and second rx-tx link; existing IPT handler/adapter | Only advertised receiver choices allowed; selected indexed partner is stored/read back; disabling sender leaves receivers intact | Two-choice target lifecycle and rejected-partner preservation |
+| Timed soak | Test fixture owns/reaps its own driver and simulator children | Explicit duration/recovery bounds, fixed histograms, checked log/RSS ceilings; never a production background task | Automatic short regression and opt-in timed run |
+
+SDP group-ID order maps to main/spare as **local simulator policy**, not a newly
+invented SPEC field or universal backend convention. See [REDUNDANT_SDP.md](docs/REDUNDANT_SDP.md).
+The existing supported-capability boundaries and retry/cancellation rules remain
+unchanged. `rx-alt` is additive; no previous port/node IDs are renamed. Inventory
+structure synchronization remains an operator task on a future live target.
+
 ## Ownership, concurrency and lifetime
 
 | Owner | Owned state | Rule |

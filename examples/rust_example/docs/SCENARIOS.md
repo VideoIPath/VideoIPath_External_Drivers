@@ -71,6 +71,7 @@ the simulator service; native mode is the credential-free local exercise here.
 | `module-1` / `tx-audio`, `tx-asi`, `tx-anc`, `tx-unknown` | Other topology format types | IPT disabled; no sender SDP |
 | `module-1` / `tx-monitor` | Transceiver with null topology | IPT unsupported |
 | `module-1` / `rx-1` | Video receiver with H264/H265/MP2T SDP subset and separate spare-path state | IPT disabled; `format_id: raw-video` |
+| `module-1` / `rx-alt` | Alternative video resource receiver; non-SDP configuration | IPT disabled; second receiver-to-tx-1 resource choice |
 | `module-1` / `rx-audio` | Audio receiver with L16/L24 PCM SDP subset | IPT disabled |
 | `module-1` / `fan-1` | Non-routable generic component | Scoped `enabled: true` |
 | `module-1` / `net-main`, `net-spare` | Redundant pair | 192.0.2.10 / 198.51.100.10 |
@@ -173,6 +174,13 @@ simple drift exercise. Never paste real SRT keys into CLI arguments. The modeled
 SDP and format limits are described explicitly in [PROTOCOL.md](PROTOCOL.md).
 
 ## Failure injection
+
+For documented resource-routing choices, run
+`cargo test --locked --test resource_choices`. It initializes indexed `rx-1` and
+`rx-alt`, selects each for `tx-1`, verifies target readback/check, rejects an
+unlinked partner without changing state, and disables the sender independently.
+The [complete selection frame](PROTOCOL.md#selecting-a-receiver-resource) shows
+the documented receiver-partner shape. No `tx-tx` selection extension is guessed.
 
 | Command suffix after `simctl` | Effect | Observation |
 | --- | --- | --- |

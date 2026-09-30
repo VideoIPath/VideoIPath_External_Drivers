@@ -60,6 +60,10 @@ their gap column narrows what that test actually establishes.
 | T17 | [session.rs](../src/session.rs): `private_revision_never_leaks_onto_spec_wire`, `stale_delayed_event_retires_instead_of_overwriting_confirmed_state`, `mutating_requests_hold_the_lane_through_causal_delivery`, `reconnect_jitter_is_bounded_and_saturates` |
 | T18 | [native_end_to_end.rs](../tests/native_end_to_end.rs): `native_driver_tls_simulator_control_restart_and_sequential_smoke` — actual driver binary, ephemeral TLS backend, independent simulator, sanitized traces, singleton/restart and 500 keepalives plus 500 fresh reads |
 | T19 | [load.rs](../tests/load.rs): `full_simulator_capacity_bulk_apply_and_repeated_cyclic_checks` — 128 modeled resources, ten check cycles, overflow rejection preserving existing state |
+| T20 | [boundaries.rs](../tests/boundaries.rs): all eight audio-pair slots, integer endpoints/neighbours, null/default distinctions, streaming/FEC matrix, SRT modes/key-size/transport bounds, VLAN/UDP and indices 0/1/64/65 |
+| T21 | [resource_choices.rs](../tests/resource_choices.rs): structural duplicate/link-scoped IDs; two receiver partners applied, independently read back, checked and disabled; unsupported selection preserves previous state |
+| T22 | [sdp_redundancy.rs](../tests/sdp_redundancy.rs): paired H264/H265 generation and receive/readback, IPv4/IPv6, mid/group mapping, section normalization, drift/repair, coherent snapshots and negative cases; [documented_frames.rs](../tests/documented_frames.rs) checks walkthrough configurations |
+| T23 | [soak.rs](../tests/soak.rs): automatic two-cycle regression and ignored elapsed workload; actual driver/simulator children, loopback TLS, reads/writes/events/alarms/IPT, backend and target recoveries, bounded histogram/RSS checks; [measured scope](SOAK.md) |
 
 ## Transport, envelope and compatibility
 
@@ -96,7 +100,7 @@ their gap column narrows what that test actually establishes.
 | ST-05 | Format type `Video`, `Audio`, `ASI`, `Ancillary`, null | **P/M** R includes each; P stores accepted control fields | T2 fixture validation; format-specific transport/media behavior is not modeled |
 | ST-06 | `topology_info: null` means no graph vertex | **M/P** R `tx-monitor`; P rejects IPT | T2 invalid resource endpoint test; backend vertex absence needs target evidence |
 | ST-07 | `format_id` null/non-null; default resource identity derivation | **P/M** `raw-video` on tx-1/rx-1, null on other fixture ports | T15 verifies link endpoint format IDs and invalid type; backend resource-ID derivation still unverified |
-| ST-08 | Sender SDP read flag / receiver SDP set flag; false default | **M, limited** R/P/A/S on `tx-1`/`rx-1`/`rx-audio` | T7/T9/T10/T15/T16; truthful sender and bounded receiver subsets; grouped SDP unsupported |
+| ST-08 | Sender SDP read flag / receiver SDP set flag; false default | **M, limited** R/P/A/S on `tx-1`/`rx-1`/`rx-audio` | T7/T9/T10/T15/T16/T22; truthful single-stream and paired H264/H265 DUP subset; full ST 2110 unsupported |
 | ST-09 | `sips` true/false/default; interface options | **P/M** R advertises true for routable ports; P accepts main/spare | T9 spare validation; no packet protection or exhaustive false/default fixture |
 | ST-10 | Main/spare IP overrides and precedence | **B** non-null overrides explicitly rejected, not guessed | T14 negative invented shape. **Missing concrete wire shape** in supplied SPEC text; obtain target DTO/schema or accepted frame before implementation |
 | ST-11 | Generic port with dynamic values and no routing vertex | **M/P** R `fan-1` | T2 scope read; backend topology result deferred |
@@ -146,9 +150,9 @@ their gap column narrows what that test actually establishes.
 | ID | Capability / variants | Implementation and example | Local tests and remaining gaps |
 | --- | --- | --- | --- |
 | SD-01 | Sender request `module_id`, `port_id`; string/null/error | **M** A/S; [SDP frames](PROTOCOL.md#ipt-configuration-and-sdp) | T7 fake handler and T10 actual simulator; pending-generation state not distinct |
-| SD-02 | Single/dual-stream sender SDP | **M/G** S supports single H.264/H.265 with explicit dynamic payload; rejects spare/FEC/SRT and unrepresentable format state | T10 actual codec/payload/TTL and negative unsupported-state cases; dual-stream SDP not implemented; no fabricated raw/DUP fallback |
+| SD-02 | Single/dual-stream sender SDP | **M** S supports single/paired H.264/H.265 with explicit dynamic payload and DUP mids; rejects FEC/SRT and unrepresentable format state | T10/T22 actual codec/payload/TTL, IPv4/IPv6 paired round trips; constrained modeled SDP, not a media-duplication engine |
 | SD-03 | Receiver SDP apply, unsupported/invalid rejection | **M, limited** P one RTP/AVP L16/L24 audio section on rx-audio, H264/H265/MP2T video on rx-1 | T9/T16 positive forms; actual simulator sender-to-receiver H264 SDP/readback round trip; malformed codec/clock/channels, media-type mismatch, payload rules and unsupported syntax |
-| SD-04 | SDP source/format consistency | **M, bounded** address/UDP/payload/audio/source-filter checks, CRLF normalization; unknown SDP semantics rejected | T9/T16. No full SDP parser, raw video/fmtp or grouped SDP. Spare/SRT with receiver SDP rejected. Sender H.264/H.265 is outside the receiver subset |
+| SD-04 | SDP source/format consistency | **M, bounded** address/UDP/payload/audio/source-filter checks, CRLF/group-section normalization | T9/T16/T22; first/second group ID maps to main/spare as simulator policy; raw video/fmtp, arbitrary groups, audio DUP and SRT/FEC+SDP remain unsupported |
 | IP-01 | Module batch arrays; sender and receiver; empty default arrays | **M** P/A | T6/T14 mixed/empty/omitted arrays; [batch frames](PROTOCOL.md#partial-failure-and-advanced-forms) |
 | IP-02 | Per-config error arrays `id`, `sub_index`, `error`; duplicates ignored | **M** A | T6 mixed success/failure and duplicates |
 | IP-03 | Whole-request malformed identity/module/capacity failure | **M** A bound 256 | T1/T14 malformed identity and over-limit batch rejected before application; unknown-module batch needs a dedicated test |
@@ -156,18 +160,18 @@ their gap column narrows what that test actually establishes.
 | IP-05 | Sender main/spare destination, address, UDP, VLAN, interface | **M** P/S | T6 multicast/main, T8 unicast, T9 spare, T14 invalid address/UDP/VLAN/interface; IPv6 and complete boundary matrix remain gaps |
 | IP-06 | Receiver main/spare source, source/destination addresses, UDP/VLAN/interface | **M** P/S | T6/T9 main; receiver-spare/source-family/invalid-VLAN test matrix incomplete |
 | IP-07 | Sender format_info and receiver format_attributes | **M/P** normalized retained fields | T8/T9/T14/T16 explicit retained enum values and bounded SDP consistency; full enumeration ledger below; no encoding |
-| IP-08 | Receiver fec_enabled, srt, sdp, informational source_meta | **M/P** FEC flag/SRT/SDP modeled; source_meta ignored | T9/T16 SDP; receiver SDP plus SRT/spare unsupported; non-SDP receiver FEC/SRT matrix incomplete; no provenance display |
-| IP-09 | Sender streaming: QoS, TS packet length/count/rate, IP rate, TTL | **M/P** P eight-bit QoS; packet 188/204; positive count/TTL | T8 valid 188 and invalid QoS; other ranges/204 not exhaustive |
-| IP-10 | FEC length/depth/skew/overhead; single/matrix | **M/P** P/S; depth null vs positive; overhead 0–100 | T8 matrix/single and invalid length/overhead; no FEC packets |
-| IP-11 | SRT caller/listener, buffer latency, overhead bandwidth | **M/P** P/S; multicast rejected | T8 invalid mode; T14 both modes; complete multicast/range matrix remains missing |
-| IP-12 | SRT encryption absent / AES128 / AES192 / AES256 and key | **M/P** P/D; bounded nonempty key, redacted Debug | T14 all modes × absent/AES128/AES192/AES256 and redaction; no real encryption or exhaustive key-boundary fixture |
+| IP-08 | Receiver fec_enabled, srt, sdp, informational source_meta | **M/P** FEC flag/SRT/SDP modeled; source_meta ignored | T9/T16/T22 bounded SDP including spare; SDP plus SRT/FEC rejected; T20 non-SDP SRT bounds/modes; no provenance display |
+| IP-09 | Sender streaming: QoS, TS packet length/count/rate, IP rate, TTL | **M/P** P eight-bit QoS; packet 188/204; positive count/TTL | T8/T20 both packet lengths, exact integer endpoints, malformed types and immediate out-of-range cases |
+| IP-10 | FEC length/depth/skew/overhead; single/matrix | **M/P** P/S; depth null vs positive; overhead 0–100 | T8/T20 null/single/matrix, both skew values, full integer endpoints and 0/100 overhead with negative neighbours; no FEC packets |
+| IP-11 | SRT caller/listener, buffer latency, overhead bandwidth | **M/P** P/S; multicast rejected | T14/T20 both modes/directions, latency and overhead endpoints/neighbours, invalid types and multicast rejection |
+| IP-12 | SRT encryption absent / AES128 / AES192 / AES256 and key | **M/P** P/D; bounded nonempty key, redacted Debug | T14 all algorithms; T20 synthetic key lengths 0/1/1024/1025 in both directions/modes; simulator policy, not real SRT passphrase/media validation |
 | CK-01 | Check actual device state, supported-field normalization | **M** A/U/S | T6 fake drift, T10 independent simulator drift, T18 actual binary repair trace and T19 repeated full-capacity checks; never unconditional true |
 | CK-02 | set_again false/true; failed repair; failed reread match | **M** A | T6 false, successful repair, rejected/ignored apply; T18 binary drift/repair; transport readback failure matrix incomplete |
 | CK-03 | Backend cyclic schedule (minute / minimum second spacing) | **O** backend owns scheduling | No driver poll loop; target scheduling unverified |
-| RL-01 | `rx-tx`, valid endpoints with topology, fixed partner | **M/P** R one link; P validates selected receiver | T2 invalid refs; T9 allowed/rejected partner; no physical internal routing |
-| RL-02 | Choice links, duplicates, format-derived resource IDs | **P/G** validator permits references; fixed fixture link has raw-video at both ends | T15 verifies endpoint format IDs; multiple choices/dedup/resource-ID derivation remain untested; target owns graph derivation |
+| RL-01 | `rx-tx`, valid endpoints with topology, chosen partner | **M** R two choices (rx-1/rx-alt → tx-1); P validates selected receiver | T2/T9 refs; T21 real Unix adapter applies and independently reads back each indexed choice; no physical internal routing |
+| RL-02 | Choice links, duplicates, format-derived resource IDs | **M/P** choices share raw-video endpoint format IDs; duplicate links validate | T15/T21 identity/reference/duplicate tests; target owns graph/resource-ID derivation, not calculated locally |
 | RL-03 | `tx-tx` links and selected resource_partner semantics | **P/B** validator accepts link kind; runtime partner is receiver-only | **Ambiguous partner semantics:** SPEC shows receiver-shaped partner and newer sender-to-sender links without a complete selection rule. No fabricated extension |
-| MV-01 | Null single segment vs sub-index 1..N; independent lifecycle | **M** R limits N to 64; S keyed state; disable removes key | T6 selective removal/zero rejection; T15 null and indexed sender batch; T19 all indices 1–64 across two ports, 128-resource ceiling and overflow preservation; index 65 needs a direct negative fixture |
+| MV-01 | Null single segment vs sub-index 1..N; independent lifecycle | **M** R limits N to 64; S keyed state; disable removes key | T6/T15/T19 resource lifecycle/capacity; T20 explicit null/0/1/64/65/type boundaries; T21 partner choice and independent removal |
 | MV-02 | Inventory multiplicity setup and dynamic physical resources | **G/O** topology setup external; simulator creates/removes state entries only | No VideoIPath topology automation, physical allocation or sender-SDP sub-index extension |
 
 ## Format field and enum inventory
@@ -182,13 +186,13 @@ No row has target acceptance.
 
 | ID | Documented fields / cases | Local evidence and gap |
 | --- | --- | --- |
-| FM-01 | `audio_pairs`: G1P1, G1P2, G2P1, G2P2, G3P1, G3P2, G4P1, G4P2; each null or `{codec, bitrate}` | T8 G1P1 populated; other slots/nulls need explicit fixtures; unknown pair keys ignored |
+| FM-01 | `audio_pairs`: G1P1, G1P2, G2P1, G2P2, G3P1, G3P2, G4P1, G4P2; each null or `{codec, bitrate}` | T20 all eight populated and individually nulled, bitrate endpoints/neighbours/types; unknown pair keys ignored |
 | FM-02 | Audio codecs: MPEG-1 Layer 2, AAC_LC, AAC_HE, SMPTE 302M, Dolby E, Dolby Digital | T14 checks every codec retained in G1P1; unsigned bitrate retained without encoding |
 | FM-03 | `video_codec.codec`: H.264, H.265, MPEG-2, AVC-I 50, AVC-I 100, J2K, TICO, JPEG XS | T14 checks every codec with both entropy choices and all GOP structures; only H.264/H.265 have sender SDP support |
 | FM-04 | `entropy_encoding`: CAVLC, CABAC | T14 checks both in the codec/entropy/GOP combination matrix |
-| FM-05 | `gop_struct`: Automatic, IP, IPB, IPBB, IPBBB, IPBBBB; `gop_size` | T14 checks all structures with gop_size 12; zero/upper-bound size tests remain missing |
+| FM-05 | `gop_struct`: Automatic, IP, IPB, IPBB, IPBBB, IPBBBB; `gop_size` | T14 all structures; T20 zero/u32 maximum retained and adjacent overflow, negative and boolean rejected |
 | FM-06 | Audio `bit_depth`: L16, L20, L24, L32, AM824 | T14 checks all retained values; receiver SDP supports only L16/L24 |
-| FM-07 | Audio `frame_size`, `n_channels`, `sample_rate`, `link_offset`; nullable optional values | Unsigned model; channels/rate reject zero; T8/T9 2/48000; other limits/default/null combinations missing |
+| FM-07 | Audio `frame_size`, `n_channels`, `sample_rate`, `link_offset`; nullable optional values | T20 null/absent, each minimum/u32 maximum, overflow/negative/bool/fraction; channel/rate zero rejected; modeled state, not physical audio constraints |
 | FM-08 | Video `colorimetry`: BT601, BT709, BT2020, BT2100 | T14 checks each retained value and rejects an unknown case |
 | FM-09 | Video `bit_depth`: 8, 10, 12, 16, 16f (strings) | T14 checks each retained value and rejects an unknown case |
 | FM-10 | `exact_framerate`: 23.97, 24, 25, 29.97, 30, 47.95, 48, 50, 59.94, 60 (strings) | T14 checks each documented spelling and rejects an unknown case |
@@ -197,7 +201,7 @@ No row has target acceptance.
 | FM-13 | `sampling`: 4:2:2, 4:2:0, 4:4:4 | T14 checks each retained value and rejects an unknown case |
 | FM-14 | `tcs`: SDR, PQ, HLG, SLOG3 | T14 checks each retained value and rejects an unknown case |
 | FM-15 | `tp`: 2110TPNL, 2110TPN, 2110TPW | T14 checks each retained value and rejects an unknown case |
-| FM-16 | `ptp_domain`, `rtp_payload_type` | Local bounds 0–255 / 0–127; T8 127/96 and payload 128 rejection; no PTP or RTP engine |
+| FM-16 | `ptp_domain`, `rtp_payload_type` | Local bounds 0–255 / 0–127; T8/T20 exact endpoints and max+1 rejection; no PTP or RTP engine |
 | FM-17 | Empty/default format objects; irrelevant/unknown fields ignored | T6 empty format, T8/T16 nested extra-field normalization and strict known-field rejection; absent/null/value combinations not exhaustive for every nested field |
 
 ## Explicit boundaries and next evidence
@@ -220,3 +224,6 @@ a selected partner for a `tx-tx` link? Also confirm empty-ID read semantics and
 complete optional-metadata conversion on that release. Keep answers as sanitized,
 version-scoped fixtures and update the relevant rows rather than adding guessed
 wire aliases or broad claims about API maturity.
+
+See [remaining wire evidence](WIRE_EVIDENCE.md) for the completed local search,
+the deliberate rejection boundaries, and the minimal sanitized evidence needed.

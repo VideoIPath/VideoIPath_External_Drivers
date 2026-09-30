@@ -60,14 +60,14 @@ proceeds. An unchecked gate is not a passing gate.
 
 | Gate | Current evidence |
 | --- | --- |
-| Native Rust compilation and tests | 82 automatic tests passed; Linux x86_64, Rust 1.98.1 |
+| Native Rust compilation and tests | 99 automatic tests passed for 0.2.0; Linux x86_64, Rust 1.98.1 |
 | Formatting and static analysis | `cargo fmt --all --check`, strict all-target Clippy, and rustdoc passed |
 | TLS/authentication behavior | Six real local TLS tests passed, including custom CA, hostname mismatch, untrusted CA and HTTP 401 |
 | Simulator and socket lifecycle | 16 tests passed, including pre-apply cancellation, stale revisions, bounded alarm snapshots and safe socket recovery |
-| Compose/environment contract | Parity/default tests passed; additional Docker Compose interpolation test explicitly run and passed (83 total tests) |
-| Clean container build and runtime smoke | Static musl image built; final crash-recovery smoke recorded below |
-| Runtime-image vulnerability scan | Static runtime candidate passed blocking scan; exact final image identity recorded below |
-| Load and latency | 128 configured streams, 10 complete cyclic-check rounds and per-port capacity failure passed; local measurements below |
+| Compose/environment contract | Parity/default tests and explicit Docker Compose interpolation test passed; elapsed soak also explicitly run (101 total test cases passed) |
+| Clean container build and runtime smoke | 0.2.0 static-musl rebuild and hardened two-service singleton/restart/crash-recovery/stop checks passed |
+| Runtime-image vulnerability scan | Exact 0.2.0 image and locked Cargo graph passed the blocking fixable HIGH/CRITICAL policy |
+| Load and latency | 128 streams × 10 checks passed; five-minute native child-process soak completed with 14,761 exchanges and 120 injected recoveries |
 | Host reboot and boot launcher | Template validation only until an authorized host rehearsal |
 | Live VideoIPath commissioning | Deferred: no instance or target evidence available |
 | Physical device/media | Not claimed; simulator only |
@@ -83,7 +83,7 @@ The locked Cargo graph scan found no HIGH/CRITICAL vulnerabilities under the sam
 fixable-vulnerability policy. Scanning a stripped runtime alone does not inspect
 its Rust dependency graph, so CI runs both checks.
 
-### Final local container candidate
+### Preserved 0.1.0 local container baseline
 
 - Local image ID: `sha256:451f5298d8892ab6370804f971c0270eb4c2d389f9eb155194afd46b4da0fb78`.
 - Local tag: `rust-example:local-0.1.0`; this is a development artifact, not a published release or registry manifest digest.
@@ -108,8 +108,46 @@ qualification, or VideoIPath measurements. Concurrent build load can affect tail
 Reproduce with `cargo run --locked --release --example latency` and
 `cargo test --locked --test native_end_to_end -- --nocapture`. The latter also
 checks real writes/events, drift repair, singleton refusal, identity continuity,
-and readiness clearing. Long-duration soak and real deployment load remain
-qualification work, not implied by these short repeatable workloads.
+and readiness clearing. The measurements above belong to the 0.1.0 baseline.
+Version 0.2.0 adds the longer elapsed workload below; representative production
+load and release-specific qualification are not implied by either result.
+
+### 0.2.0 local coverage extension
+
+- Actual paired H264/H265 SDP generation → receiver validation → target apply/readback,
+  including IPv4/IPv6, section/group normalization, coherent concurrent snapshots,
+  drift/repair and negative combinations. No media packets generated.
+- `rx-alt` adds a second documented receiver-to-sender choice. Selection, indexed
+  identity, rejected-partner state preservation and independent disable are tested.
+- Numeric/null/default matrices cover all eight audio slots, GOP/audio integer
+  limits, streaming/FEC combinations, SRT modes/key bounds and VLAN/UDP/sub-index
+  neighbours. These are simulator policy tests, not target schema conformance.
+- The five-minute debug child-process soak completed 1,200 cycles, 14,761 correlated
+  exchanges, 6,000 async events, 60 backend reconnects and 60 target recoveries with
+  zero unexpected errors. Driver RSS was 14,632 → 15,052 KiB; high-water 15,052 KiB.
+  Its early histogram used truncated microseconds; latency upper-bound claims from
+  that run are deliberately not retained. The ceil conversion was fixed and regression-tested.
+- See [SOAK.md](docs/SOAK.md) for final timed rerun metrics, bounds and limitations.
+  [WIRE_EVIDENCE.md](docs/WIRE_EVIDENCE.md) records the completed documentation search
+  and the exact still-missing wire evidence; no release schema was found.
+
+### 0.2.0 tested local image
+
+| Item | Recorded result |
+| --- | --- |
+| Local image ID | `sha256:1f46fbe3fdaa31c4bdc7f17651ae2013a62ecb8ece0e5f4cd1d0e024c7221913` |
+| Development tag | `rust-example:local-0.2.0` (not a published registry manifest) |
+| Docker-reported size / user | 3,244,166 bytes / `10001:10001` |
+| Build | Same pinned musl builder/static runtime and locked dependencies; clean source compilation passed |
+| Runtime lifecycle | `scripts/runtime-smoke.sh` passed, including duplicate refusal, driver restart, simulator SIGKILL recovery and graceful stop; disposable resources removed |
+| Security | Trivy 0.74.0 image + Cargo graph: zero fixable HIGH/CRITICAL findings under the dated database; not an absence-of-all-vulnerabilities claim |
+| Source / image audit | Secret scan reported no findings; runtime filesystem contains no source/build tools, populated environment or private plan; read-only non-root `--version` reports 0.2.0 |
+| Publication / live changes | None; old local image retained, no accepted deployment replaced |
+
+The final corrected-histogram soak rerun completed another 5,905 exchanges and 48
+recoveries in two minutes with zero unexpected errors; driver high-water 14,972 KiB.
+These observations do not validate container-limit soak behavior, real media or
+VideoIPath compatibility. No target-release or publication gate is marked complete.
 
 ## Future VideoIPath acceptance
 

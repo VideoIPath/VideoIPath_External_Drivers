@@ -67,7 +67,7 @@ $\Large\color{green}{\textsf{Limitations and Boundaries}}$
 - Firmware upgrades, device backup/restore, and automatic active/active driver redundancy are outside this example's scope.
 - Device status can be exposed through ordinary read-only parameters; there is no dedicated SPEC-23 metrics message.
 - Ambiguous or release-specific protocol details are identified explicitly rather than filled in with invented wire fields. Non-null IP overrides and sender-to-sender partner selection remain blocked on evidence.
-- SDP is deliberately limited: the sender models single-stream H.264/H.265 with an explicit RTP payload type; the receiver accepts H.264/H.265/MP2T video and L16/L24 audio. Grouped/dual-stream SDP and full ST 2110 format generation are not implemented.
+- SDP includes single-stream H.264/H.265 and a validated two-stream `DUP` example with matching receiver configuration. Single-stream MP2T video and L16/L24 audio reception are also covered. Full ST 2110 format generation remains outside the implemented subset; see the [redundant SDP walkthrough](docs/REDUNDANT_SDP.md).
 
 ## 1. Purpose and Scope
 
@@ -129,6 +129,11 @@ Advanced scenarios explain resource links and dynamically addressed streams sepa
 
 Low latency is a measurement goal, not a universal performance claim. Local tests cover slow-device conditions and saturation. `cargo run --locked --release --example latency` measures Unix-socket snapshot round trips; it does not measure VideoIPath or network latency.
 
+The [opt-in soak workload](docs/SOAK.md) runs the actual driver and simulator as
+separate processes, exercises fault/reconnect recovery, and records bounded
+latency histograms and driver RSS. Use `SOAK_SECONDS=120 sh scripts/soak.sh`;
+normal tests include a short version, while manual CI runs the timed workload.
+
 ## 7. Building and Running
 
 From this directory, with Rustup installed:
@@ -143,7 +148,7 @@ To explore without VideoIPath, follow the [native simulator setup](docs/SIMULATO
 
 For Docker Compose, start with the [operator runbook](OPERATIONS.md): copy `.env.example` to a protected `.env`, supply your own node identity and connection settings, prepare the shared lock directory, and deliberately build the local image using `compose.build.yaml`. Then run the image-only deployment. An unedited `.env.example` intentionally cannot start a connected driver.
 
-The runtime image is non-root and distroless, with no shell or compiler. No prebuilt registry image is published. Package version is **0.1.0**; Linux amd64 is the locally exercised platform, not a promise of other-platform or VideoIPath-release compatibility.
+The runtime image is non-root and distroless, with no shell or compiler. No prebuilt registry image is published. Package version is **0.2.0**; Linux amd64 is the locally exercised platform, not a promise of other-platform or VideoIPath-release compatibility.
 
 ## 8. Development and Test Sequence
 
