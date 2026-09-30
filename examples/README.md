@@ -1,6 +1,6 @@
-# Drivers guide
+# Examples
 
-Completed drivers are split by Programming language in current state there are two:
+This directory contains example external drivers. Each example is kept in its own folder:
 
-- Python
-- Rust 
+- [`Python`](Python/) — Python reference example.
+- [`rust_example`](rust_example/) — Rust example driver scaffold.
