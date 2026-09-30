@@ -1,0 +1,12 @@
+# Opt-in only. Both services run the same deliberately built local image.
+services:
+  driver:
+    pull_policy: never
+    build:
+      context: .
+      target: runtime
+  simulator:
+    pull_policy: never
+    build:
+      context: .
+      target: runtime

@@ -1,0 +1,13 @@
+# Keep the operator inventory, never a populated environment or local private plan.
+.env
+.env.*
+!.env.example
+PLAN.local.md
+target/
+state/
+*.log
+*.pem
+*.key
+*.crt
+deployment/certificates/*
+!deployment/certificates/.gitkeep

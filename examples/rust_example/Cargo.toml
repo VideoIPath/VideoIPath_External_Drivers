@@ -1,0 +1,42 @@
+[package]
+name = "rust-example"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-only"
+description = "Documented VideoIPath external driver with an independent simulated device"
+publish = false
+
+[dependencies]
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util", "fs", "signal"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
+tokio-util = { version = "0.7.19", features = ["rt", "codec"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2.2.0"
+rustls-native-certs = "0.8.4"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+thiserror = "2.0.21"
+uuid = { version = "1.26.1", features = ["v4", "serde"] }
+url = "2.5.8"
+futures-util = { version = "0.3.34", features = ["sink"] }
+rand = "0.10.3"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["test-util"] }
+rcgen = "0.14.10"
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+await_holding_lock = "deny"

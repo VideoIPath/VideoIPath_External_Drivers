@@ -1,0 +1,21 @@
+# Optional host boot launcher. Review paths before manually installing; never auto-installed.
+# Instance name is the directory name under /opt/rust-example, not a token or node UUID.
+[Unit]
+Description=Rust external-driver example (%i)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/rust-example/%i
+# env -i prevents systemd-manager variables from silently overriding the protected .env.
+ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root /usr/bin/docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root /usr/bin/docker compose --env-file .env -f compose.yaml stop
+TimeoutStartSec=180
+TimeoutStopSec=60
+# No systemd Restart: the finite Compose restart policy owns process-failure attempts.
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+# Deny by default. Dockerfile COPY must also remain explicit, never COPY . .
+**
+!Dockerfile
+!Cargo.toml
+!Cargo.lock
+!src/
+!src/**/
+!src/**/*.rs
+# Defense in depth: these never belong in a source subtree or build context.
+**/.env*
+**/*.pem
+**/*.key
+**/PLAN.local.md
+**/target/**
+**/.git/**

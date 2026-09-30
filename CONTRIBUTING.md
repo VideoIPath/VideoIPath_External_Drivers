@@ -5,7 +5,7 @@ This repository is for external drivers that contributors use with VideoIPath. C
 ## Driver expectations
 
 - Contribute a driver that you have tested with a real device and VideoIPath. Verify the capabilities you claim to support; a driver does not have to implement every External Driver API capability.
-- Follow the driver-development guidance in the [main README](README.md). Python and Rust examples are planned as references; drivers may be written in any language.
+- Follow the driver-development guidance in the [main README](README.md). The [Python](examples/Python/) and [Rust](examples/rust_example/) examples provide references; drivers may be written in any language.
 - Put each driver in its own `Drivers/<Vendor>/<Driver>/` directory. Include the source code, dependency information, build and installation instructions, deployment configuration, and driver README in that directory. Someone should be able to build and run the driver using the contents of that directory and its documented dependencies.
 - Document the device model, firmware, and VideoIPath version used for testing. Distinguish tested combinations from other devices or versions the driver is expected to support, and describe any known limitations.
 - Include a Docker Compose example showing the configuration needed to run the driver. Document the steps to build the image locally and ensure the example uses that image. A published or prebuilt image is not required; a Dockerfile is optional if the build instructions provide another way to build the image.
