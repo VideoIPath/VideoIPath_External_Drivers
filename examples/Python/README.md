@@ -2,7 +2,7 @@
 
 A Python reference implementation of a VideoIPath External Driver using WebSockets.
 
-The simulator connects to a VideoIPath server, exposes a configurable device structure, responds to protocol requests, stores dynamic values in memory, validates incoming value updates, and automatically reconnects after a disconnection.
+The example connects to a VideoIPath server, exposes a configurable device structure, responds to protocol requests, stores dynamic values in memory, validates incoming value updates, and automatically reconnects after a disconnection.
 
 ## Features
 
@@ -31,7 +31,7 @@ Install the dependency:
 python -m pip install websockets
 ```
 
-## Running the Simulator
+## Running the example
 
 Assuming the source file is named `vip_external_driver_example.py`:
 
@@ -71,7 +71,7 @@ python vip_external_driver_example.py \
 
 ## Device Structure
 
-The simulator reports one module named `module-1`.
+The example reports one module named `module-1`.
 
 ### Senders
 
@@ -117,7 +117,7 @@ The `access`, `gpi_capable`, and `gpo_capable` fields are currently exposed as m
 
 ### Number
 
-Numbers are represented as integers. The simulator validates the configured minimum and maximum values.
+Numbers are represented as integers. The example validates the configured minimum and maximum values.
 
 Example parameter:
 
@@ -341,7 +341,7 @@ Unsupported request types receive an error response:
 
 ## Logging
 
-Logging is enabled at `INFO` level. The simulator records:
+Logging is enabled at `INFO` level. The example records:
 
 - Connection attempts
 - Successful connections
@@ -367,7 +367,7 @@ Example:
 
 ## Reconnection Behavior
 
-When the connection ends or an exception occurs, the simulator:
+When the connection ends or an exception occurs, the example:
 
 1. Logs the exception.
 2. Waits five seconds.
@@ -376,7 +376,7 @@ When the connection ends or an exception occurs, the simulator:
 
 Dynamic values are recreated from their defaults after each successful reconnection because a new `Driver` instance is created.
 
-## Extending the Simulator
+## Extending the example
 
 ### Add a Numeric Parameter
 
@@ -447,12 +447,12 @@ if name == "gpo":
 - Numeric step increments are advertised but not enforced.
 - Alarm responses are always empty.
 - Unknown IDs in `get_dynamic_values` are silently omitted.
-- The simulator does not actively send dynamic-value change notifications.
+- The example does not actively send dynamic-value change notifications.
 - The supplied code contains an unreachable `await self.tx(response)` after the `get_dynamic_values` response and `return`. It can be removed.
 
 ## Intended Use
 
-This simulator is suitable for:
+This example is suitable for:
 
 - External Driver prototyping
 - VideoIPath integration testing
