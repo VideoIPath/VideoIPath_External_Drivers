@@ -1,7 +1,10 @@
-//! One socket generation: bounded work, one writer, and delivery-before-causal-event ordering.
+//! External Driver API session rules, independent of the vendor's commands.
 //!
-//! The handler seam accepts JSON at the protocol boundary, not vendor DTOs. Tests can
-//! stall a handler without stalling keepalive handling or inventing a physical device.
+//! Preserve request correlation, response-before-causal-event delivery and healthy
+//! keepalives even when device I/O is slow. Bounds and generation cancellation keep
+//! old work from answering a new connection. These are reusable lessons; the exact
+//! queues/locks are this Rust example's design, not additional SPEC-23 messages.
+//! Vendor operations belong behind the handler, never inside the socket writer.
 use futures_util::{SinkExt, StreamExt, future::BoxFuture};
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};

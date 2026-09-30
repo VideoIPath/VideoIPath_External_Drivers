@@ -1,12 +1,63 @@
-# Replace the simulator with one device API
+# Build a driver for your device
 
 Start with a device and firmware you can observe and control. Implement only its
 real capabilities, and make structure metadata match those capabilities. The
 existing simulator provides a learning and local-test boundary; it is not proof
 of a physical device's behavior or VideoIPath release acceptance.
 
-Read [DESIGN.md](../DESIGN.md), [PROTOCOL.md](PROTOCOL.md) and the
-[coverage ledger](COVERAGE.md) before changing the adapter.
+Start with the [README's gain-control lesson](../README.md#2-follow-one-control-from-definition-to-device).
+Use [PROTOCOL.md](PROTOCOL.md) for complete frames as you add each capability;
+you do not need to learn the simulator's internals first.
+
+## First increment: one real parameter
+
+Suppose the vendor API has a gain read and an absolute gain set. Establish its
+units, range, rounding, acknowledgement and readback behavior from vendor evidence
+before mapping it. The example's `audio_gain` is a worked pattern, not a required
+name or range.
+
+| Step | Change in your driver | What the test must prove |
+| --- | --- | --- |
+| 1. Choose the identity | Give the physical target a stable UUID; choose a root, module or port `Location` and stable local parameter ID | Restarts and relabeling do not create a different control |
+| 2. Describe the control | Adapt `Registry::new` and `Parameter` to the real type/range/unit/access; remove unrelated demonstration entries | `get_structure` describes the same values the runtime accepts; it contains no current reading |
+| 3. Read the vendor API | Implement `Device::read_values` in a new vendor adapter; convert device units to advertised units | `get_dynamic_values` returns the vendor observation, not `Parameter.default`; failed reads are errors |
+| 4. Set and confirm | Implement `Device::set_value`; convert units, apply, then query the actual value | A valid change succeeds, an invalid value never reaches the device, and normalization/partial apply is reported truthfully |
+| 5. Connect the adapter | Construct it in `main.rs` where `Client::connect` currently creates the simulator client; replace the simulator-specific health/event wiring | Device contact is established before the backend session; device loss changes readiness and keepalive behavior |
+| 6. Exercise the whole request | Adapt the frame tests to a fake vendor server, then use approved safe physical values | Response correlation, failed-ID map, readback and changed-only notification order survive the new transport |
+
+For a read-only sensor, stop before the setter: use `read_only`, disable GPIO
+flags, and reject writes. For a write-only command, use the action path instead
+of inventing a readable value. If the device has events, add them after reads and
+writes work; do not turn a demand-only sensor into GPI by changing a metadata flag.
+
+The example tests make useful starting points:
+
+```sh
+cargo test --locked --test documented_frames readme_gain_frames_follow_observed_device_state
+cargo test --locked --test capabilities partial_set_types_access_steps_changed_only_and_action
+cargo test --locked --test capabilities scope_identity_and_uncertain_write_readback
+```
+
+Replace the simulator process/control-socket deployment settings with your vendor
+endpoint, authentication and transport settings. Update `.env.example`, Compose
+forwarding and configuration tests together; don't retain dummy simulator options.
+
+## Add only the next needed API capability
+
+| Need | Vendor behavior to supply | Protocol lesson |
+| --- | --- | --- |
+| Local/front-panel changes | Reliable observed events; reconcile them with concurrent writes | `async_values_changed` uses the same location and local IDs as reads |
+| Alarms | Full active fault list, optionally event raise/clear | `alarms` omission means clear; an unavailable list is not an empty one |
+| Routed media ports | Enable, configure, disable and query each actual sender/receiver | `set_ipt_configurations` reports per-port failures; `enabled_config: null` disables |
+| SDP | Obtain/generate actual sender SDP or apply supported receiver SDP | Advertise `sdp_support` only for the corresponding working operation |
+| Drift repair | Independent normalized readback and safe reapply | `check_ipt_configuration` compares supported fields and honors `set_again` |
+| Resource routing | Real internal receiver-to-sender choices and resource lifetime | Add links/indices only when needed; see the [selection walkthrough](PROTOCOL.md#selecting-a-receiver-resource) |
+
+Do not port the entire media parser for a sensor-only device. The sample's FEC,
+SRT and redundancy storage demonstrates payload handling, not the vendor operations
+needed to provide those capabilities. The [coverage ledger](COVERAGE.md) lists
+the exact implemented variants; unresolved wire details are not extension points
+for guessed fields.
 
 ## Keep the translation boundary
 
@@ -19,10 +70,11 @@ Read [DESIGN.md](../DESIGN.md), [PROTOCOL.md](PROTOCOL.md) and the
 | New vendor adapter | Authentication, vendor DTOs, transport, normalization, physical readback | VideoIPath connection management and database access |
 | `main.rs` | Construct the concrete adapter and supervise its lifetime | Capability-specific behavior |
 
-The existing `Device` trait groups six related operations. It is statically
-dispatched with native Rust futures; do not add `async-trait`, a plugin framework
-or an all-vendor abstraction to implement one device. Split the trait into smaller
-capabilities only when a real implementation boundary benefits from that split.
+The sample `Device` trait groups six operations to make these lessons runnable.
+It is not part of SPEC-23 or a requirement to implement unused capabilities.
+Trim or split it to match your device; keep unsupported requests as explicit errors.
+Retain the separation between protocol semantics and vendor I/O, not necessarily
+this project's file layout or exact types.
 
 ## Define identity and advertised behavior first
 
@@ -36,10 +88,9 @@ capabilities only when a real implementation boundary benefits from that split.
   from merely accepting a spare-field object, and no GPI without reliable events.
 - A sensor can be read-only without GPIO. Read it from a fresh coherent snapshot
   when requested; do not add a duplicate background poll just to create events.
-- Update the one current registry deliberately. There is no runtime structure
-  selection; only configuration order is a startup setting within the fixed
-  fixture. Test clean consumers after structural changes, then plan Inventory
-  synchronization and migration of saved Panel bindings.
+- Replace the demonstration structure rather than appending your product to it.
+  Test clean consumers after structural changes, then plan Inventory synchronization
+  and migration of saved Panel bindings. Changing a label should not rename an ID.
 
 ## Implement observed state, not request echo
 
@@ -76,31 +127,22 @@ potentially transmitted before the first write/flush/drain can suspend. Timeout
 or cancellation after that point must retire an ambiguous stream and fail its
 waiters so late replies cannot satisfy a later command.
 
-Use bounded buffers, requests and tasks. The session already holds an exclusive
-`RwLock` lane for backend mutations through read/apply/readback, response and
-causal-event delivery. Reads share the lane; keepalive bypasses it. A real device
-may need additional resource-specific coordination outside that session boundary.
+Use bounded buffers, requests and tasks. Serialize conflicting operations through
+read/apply/readback without blocking keepalive handling. A handler returns causal
+changes to the session, which delivers the response first; the adapter must not
+publish the same change independently before that response.
 
-The simulator's private transport attaches revisions to observations, and the
-adapter tracks confirmed value-write floors by `(location, local_id)`. Preserve
-this metadata through internal relay queues and validate freshness at actual
-session dispatch. Do not add it to SPEC frames: `_driver_revision` is an internal
-relay key removed before wire serialization. Reads must not advance write floors
-or suppress unrelated GPIO/alarm history.
+Design event reconciliation from what the vendor actually supplies: transaction
+IDs, revisions, readback or other evidence. The simulator's private revisions and
+the sample's retire/resynchronize policy are **not SPEC fields or a universal device
+algorithm**. Do not fabricate equivalent vendor guarantees. Preserve meaningful
+alarm transitions and action counts; suppress only attributable echoes, and recover
+authoritative state visibly on event loss. See [DESIGN.md](../DESIGN.md) for how the
+Rust example enforces these invariants if you reuse its session implementation.
 
-A handler returns causal changes to the session. It must not also publish them
-from the adapter. The session delivers the response before those changes.
-For independent events, the current policy closes/resynchronizes on a stale
-observation or a conflict with the mutation lane. This detects conflicts without
-claiming full event-history reconciliation. To support richer vendor concurrency,
-add device-backed transaction/revision evidence and tests before replacing that
-policy; suppress only attributable echoes, not every event with the same ID.
-Preserve alarm transitions and action counts; coalesce only replaceable current
-state. On overflow, fail visibly and recover authoritative state.
-
-The five-second `health` probe is transport liveness, not a second parameter poll.
-Subscribe before startup reads and backend establishment so early event overflow
-is detectable, and clear readiness before reconnect backoff.
+Make health reflect real device contact, subscribe early enough not to lose startup
+events, and clear readiness before reconnect backoff. Do not add a second parameter
+poll solely to keep a Panel value current.
 
 ## Error, security and teaching contract
 
@@ -110,10 +152,9 @@ Keep TLS/hostname verification on, scope permissions to the device API and place
 secrets outside source and command-line arguments. Do not introduce a generic
 URL/OID/file resolver for unadvertised parameters; define a validated namespace.
 
-Keep the node's `std::fs` lock guard alive across reconnects. Use Tokio task
-ownership and cancellation explicitly. Modern stable Rust already supports the
-native future-based capability contract; additional machinery needs a concrete
-reason.
+Keep singleton ownership across reconnects and cancel/drain old device work on
+session replacement. Preserve these properties when simplifying the sample;
+the exact lock/task implementation is a design choice, not a wire requirement.
 
 Inline teaching comments are required for non-obvious ownership, concurrency,
 security and protocol rules. Explain why retries are unsafe, what an observation

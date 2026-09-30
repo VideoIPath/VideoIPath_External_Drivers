@@ -1,5 +1,6 @@
-//! One immutable parameter catalog drives discovery, validation and defaults.
-//! Local IDs deliberately repeat between scopes: identity is (location, id).
+//! Edit [`Registry::new`] to describe your device for get_structure.
+//! Parameter definitions and runtime validation share this catalog; vendor reads
+//! and writes use the same (location, local ID) identities in `application.rs`.
 use crate::domain::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -67,6 +68,8 @@ impl Parameter {
         }
     }
 
+    /// Discovery metadata, not current state or a command to apply `default`.
+    /// Match access and GPIO flags to vendor operations you can actually support.
     pub fn definition(&self) -> Value {
         let type_info = match &self.value_type {
             ValueType::Boolean => json!({"type":"boolean"}),
@@ -98,9 +101,10 @@ impl Default for Registry {
 }
 
 impl Registry {
-    /// Fixed fixture identities are never generated from shifting array indices.
-    /// This comprehensive teaching fixture includes all location types, redundant
-    /// interfaces, a cross-module interface and a non-routable transceiver.
+    /// Replace this sample catalog with the target's actual capabilities and limits.
+    /// Keep the physical device's node UUID across restarts; choose module/port IDs
+    /// from stable slots or vendor identities, unique within each list. Labels can
+    /// change; IDs must not shift when another element is inserted or removed.
     pub fn new() -> Self {
         let mut registry = Self {
             parameters: BTreeMap::new(),
@@ -126,6 +130,9 @@ impl Registry {
             "level",
             numeric("Level", 0.0, 100.0, 1.0, true, json!(50)),
         );
+        // To adapt audio_gain, change its real range/step/unit here and map this
+        // root ID in Device::read_values/set_value. The handlers share this
+        // validation and compare the write's observed result with the request.
         let mut gain = numeric("Audio gain", -20.0, 20.0, 0.5, false, json!(0.0));
         if let ValueType::Number { unit, .. } = &mut gain.value_type {
             *unit = Some("dB".into());
@@ -172,6 +179,8 @@ impl Registry {
                 advertised: true,
             },
         );
+        // Read-only sensors use ordinary get_dynamic_values. Fetch related vendor
+        // readings together in Device::read_values; no extra polling is needed.
         let mut sensor = numeric("Temperature", -40.0, 125.0, 0.1, false, json!(21.0));
         sensor.access = Access::ReadOnly;
         registry.insert(root.clone(), "temperature", sensor);
@@ -222,24 +231,22 @@ impl Registry {
             registry.insert(location, "enabled", boolean.clone());
         }
         let interface = |module: &str, id: &str, address: Value| json!({"type":"single","id":id,"label":id,"known_address":address,"dynamic_values":registry.definitions(&Location::port(module,PortKind::NetworkInterface,id))});
-        // SDP support is a capability, not a promise to accept every SDP dialect.
-        // Receivers support the bounded audio/MP2T forms checked by the codec;
-        // rx-audio keeps audio examples truthful about topology format_type.
+        // Sender sdp_support promises SDP reads; receiver sdp_support promises
+        // SDP application. Match format_type and these flags to your device and
+        // protocol::media_state, whose accepted SDP subset is sample-specific.
         let transceiver = |id: &str, kind, format: Value, topology: bool| json!({"id":id,"label":id,"dynamic_values":registry.definitions(&Location::port("module-1",kind,id)),"topology_info":if topology {json!({"format_type":format,"format_id":null,"sdp_support":id=="tx-1" || id=="rx-1" || id=="rx-audio","sips":true,"interface_options":[{"module_id":"module-1","port_id":"net-main"},{"module_id":"module-1","port_id":"net-spare"},{"module_id":"module-2","port_id":"net-aux"}]})} else {Value::Null}});
         let alternate = transceiver("rx-alt", PortKind::Receiver, json!("Video"), true);
         registry.structure = json!({"label":"Rust control-plane simulator","version":"0.1.0","product_name":"SPEC-23 teaching device","configuration_order":"senders_first","dynamic_values":registry.definitions(&root),"resource_links":[{"type":"rx-tx","from":{"module_id":"module-1","port_id":"rx-1"},"to":{"module_id":"module-1","port_id":"tx-1"}}],"modules":[
             {"id":"module-1","label":"Media module","dynamic_values":registry.definitions(&Location::module("module-1")),"senders":[transceiver("tx-1",PortKind::Sender,json!("Video"),true),transceiver("tx-audio",PortKind::Sender,json!("Audio"),true),transceiver("tx-asi",PortKind::Sender,json!("ASI"),true),transceiver("tx-anc",PortKind::Sender,json!("Ancillary"),true),transceiver("tx-unknown",PortKind::Sender,Value::Null,true),transceiver("tx-monitor",PortKind::Sender,Value::Null,false)],"receivers":[transceiver("rx-1",PortKind::Receiver,json!("Video"),true),transceiver("rx-audio",PortKind::Receiver,json!("Audio"),true)],"generic_ports":[{"id":"fan-1","label":"Fan","dynamic_values":registry.definitions(&Location::port("module-1",PortKind::Generic,"fan-1"))}],"network_interfaces":[{"type":"redundant_pair","interface_1":interface("module-1","net-main",json!("192.0.2.10")),"interface_2":interface("module-1","net-spare",json!("198.51.100.10"))}]},
             {"id":"module-2","label":"Auxiliary interfaces","dynamic_values":registry.definitions(&Location::module("module-2")),"senders":[],"receivers":[],"generic_ports":[],"network_interfaces":[interface("module-2","net-aux",Value::Null)]}
         ]});
-        // Package metadata is the one version source for CLI, structure and image.
         registry.structure["version"] = json!(env!("CARGO_PKG_VERSION"));
         registry.structure["modules"][0]["senders"][0]["topology_info"]["format_id"] =
             json!("raw-video");
         registry.structure["modules"][0]["receivers"][0]["topology_info"]["format_id"] =
             json!("raw-video");
-        // Two documented receiver-to-sender choices demonstrate explicit partner
-        // selection without guessing the direction semantics of newer tx-tx links.
-        // Existing IDs/order stay stable; adding a choice is not a renumbering.
+        // Add resource links only for real internal routing choices. A sender's
+        // resource_partner selects one of these receiver-to-sender paths.
         let mut alternate = alternate;
         alternate["topology_info"]["format_id"] = json!("raw-video");
         registry.structure["modules"][0]["receivers"]
@@ -253,7 +260,6 @@ impl Registry {
                 "type":"rx-tx","from":{"module_id":"module-1","port_id":"rx-alt"},
                 "to":{"module_id":"module-1","port_id":"tx-1"}
             }));
-        // A single display-only reference; never a hidden wire behavior or magic ID.
         registry.structure["modules"][1]["label"] = json!("Auxiliary Console 42");
         registry
     }
@@ -291,6 +297,7 @@ impl Registry {
             .into_iter()
             .collect()
     }
+    /// Simulator initialization values, not physical readback or automatic resets.
     pub fn defaults(&self, location: &Location) -> Values {
         self.parameters
             .iter()
@@ -323,6 +330,8 @@ impl Registry {
             }),
         }
     }
+    /// Resolve a stable port and optional stream instance. The 64-instance bound
+    /// is this simulator's capacity, not a SPEC-23 limit; null is a normal single port.
     pub fn port(&self, key: &PortKey) -> Result<Value, Failure> {
         if key.sub_index.is_some_and(|n| n == 0 || n > 64) {
             return Err(Failure::Range);

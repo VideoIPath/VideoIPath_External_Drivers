@@ -1,4 +1,7 @@
-//! Composition root: concrete transports are constructed here, not in handlers.
+//! Wire your vendor adapter to the External Driver API here.
+//! The driver mode is the deployable translation process; simulator/simctl modes
+//! are learning tools, not features your physical-device driver must provide.
+//! Keep concrete adapter construction here so capability handlers remain reusable.
 use rust_example::{
     application, config::Config, device::Client, diagnostics, identity::NodeLock, protocol,
     registry::Registry, session, simulator, tls,
@@ -202,6 +205,9 @@ async fn supervise(
         }
         let _ = diagnostics::readiness(&config.state_directory, false, false);
         let start = tokio::time::Instant::now();
+        // Adaptation point: connect/authenticate to your device here. Replace the
+        // simulator-specific event/health wiring below too, while preserving
+        // startup observation, device-loss reporting and old-session cancellation.
         let connected = tokio::select! {
             _=stop.cancelled()=>return Ok(()),
             result=timeout(config.operation_timeout,Client::connect(&config.socket,config.operation_timeout))=>result,

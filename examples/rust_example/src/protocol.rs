@@ -1,12 +1,13 @@
-//! Derived SPEC-23 codec, based on the later array-based IPT contract. This is
-//! not an official JSON Schema or evidence of acceptance by a VideoIPath release.
-//! Unknown object fields are ignored; known fields still receive strict checks.
+//! SPEC-23 request/response shapes and transport-to-device mapping for `application.rs`.
+//! Start at [`media_state`] to adapt IPT fields to your vendor API. Unknown JSON
+//! fields are ignored; known fields are checked. This codec is not an official schema.
 use crate::{domain::*, registry::Registry};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, net::IpAddr};
 
 pub const ASYNC_VALUES_CHANGED: &str = "async_values_changed";
+/// Sample batch bound; size your device's workload to its response deadline.
 pub const MAX_ITEMS: usize = 256;
 
 #[derive(Clone, Deserialize)]
@@ -57,12 +58,18 @@ impl Request {
         })
     }
 }
+/// Whole-request failure, correlated with the original request. Dynamic writes
+/// and IPT batches use their operation-specific partial failures when possible.
 pub fn error_frame(message_id: i128, failure: Failure) -> Value {
     json!({"message_id":message_id,"message_type":"error","data":failure.to_string()})
 }
+/// Successful dispatch preserves ID and type; `data` retains the operation's
+/// own shape (including a direct failure map for set_dynamic_values).
 pub fn response(request: &Request, data: Value) -> Value {
     json!({"message_id":request.message_id,"message_type":request.message_type,"data":data})
 }
+/// Async messages have a null ID and expect no reply. For request-caused changes,
+/// the session must deliver the correlated response before sending this frame.
 pub fn event_frame(event: &Event) -> Value {
     let (kind, data) = match event {
         Event::Values { location, values } => (
@@ -142,6 +149,8 @@ fn choice<'a>(value: &'a Value, key: &str, allowed: &[&str]) -> Result<&'a str, 
     }
 }
 
+/// Preserve module, port, direction and sub_index through apply and readback.
+/// A null sub_index is the ordinary port; numbered instances need device support.
 pub fn config_key(module: &str, config: &Value, direction: Direction) -> Result<PortKey, Failure> {
     let actual: Direction = decode(config.get("transceiver_type").ok_or(Failure::Invalid)?)?;
     if actual != direction {
@@ -162,8 +171,11 @@ pub fn config_key(module: &str, config: &Value, direction: Direction) -> Result<
     })
 }
 
-/// Translate a SPEC configuration into supported device semantics. Unknown
-/// optional metadata disappears here; comparison never uses the original DTO.
+/// Translate IPT fields that this device supports; ignore irrelevant metadata.
+/// `enabled_config: null` yields None for a real disable, not an omitted update.
+/// Adapt this mapping together with Device::configuration so application::set_ipt
+/// and check_ipt_configuration compare supported fields against physical readback.
+/// Reject unmet device requirements instead of silently confirming application.
 pub fn media_state(
     registry: &Registry,
     key: &PortKey,
@@ -589,10 +601,11 @@ fn attributes(value: &Value) -> Result<BTreeMap<String, String>, Failure> {
     Ok(result)
 }
 
-/// Bounded modeled SDP subset: one RTP/AVP L16/L24 PCM audio or MP2T/H264/H265 video
-/// section. Audio uses 44.1/48/96 kHz and 1..64 channels (simulator limits).
-/// Raw ST 2110 video needs fmtp interpretation and is explicitly unsupported.
-/// This validates control-state consistency, not universal SDP conformance.
+/// Check receiver SDP against the transport and format requested in media_state.
+/// This sample accepts one RTP/AVP L16/L24 audio or MP2T/H264/H265 video section;
+/// audio rates/channels and rejection of raw ST 2110 video are sample limits.
+/// Replace this subset with your device's supported SDP semantics, not a claim
+/// that every SDP accepted by SPEC-23 must satisfy these checks.
 pub fn validate_sdp(
     sdp: &str,
     stream: &Stream,

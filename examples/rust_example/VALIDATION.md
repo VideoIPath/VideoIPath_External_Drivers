@@ -60,11 +60,11 @@ proceeds. An unchecked gate is not a passing gate.
 
 | Gate | Current evidence |
 | --- | --- |
-| Native Rust compilation and tests | 99 automatic tests passed for 0.2.0; Linux x86_64, Rust 1.98.1 |
+| Native Rust compilation and tests | 100 automatic tests passed after the author-guide update; Linux x86_64, Rust 1.98.1 |
 | Formatting and static analysis | `cargo fmt --all --check`, strict all-target Clippy, and rustdoc passed |
 | TLS/authentication behavior | Six real local TLS tests passed, including custom CA, hostname mismatch, untrusted CA and HTTP 401 |
 | Simulator and socket lifecycle | 16 tests passed, including pre-apply cancellation, stale revisions, bounded alarm snapshots and safe socket recovery |
-| Compose/environment contract | Parity/default tests and explicit Docker Compose interpolation test passed; elapsed soak also explicitly run (101 total test cases passed) |
+| Compose/environment contract | Parity/default tests passed; explicit Compose interpolation and elapsed soak passed for the preceding 0.2.0 implementation milestone |
 | Clean container build and runtime smoke | 0.2.0 static-musl rebuild and hardened two-service singleton/restart/crash-recovery/stop checks passed |
 | Runtime-image vulnerability scan | Exact 0.2.0 image and locked Cargo graph passed the blocking fixable HIGH/CRITICAL policy |
 | Load and latency | 128 streams × 10 checks passed; five-minute native child-process soak completed with 14,761 exchanges and 120 injected recoveries |
@@ -113,6 +113,12 @@ Version 0.2.0 adds the longer elapsed workload below; representative production
 load and release-specific qualification are not implied by either result.
 
 ### 0.2.0 local coverage extension
+
+The subsequent author-guide update adds an executable README gain-control lesson
+and changes production comments only (verified against the preceding commit).
+All 100 automatic tests, formatting, strict Clippy and warnings-denied rustdoc passed;
+edited guide links/anchors were checked. Container and elapsed-soak results below
+remain the implementation milestone's evidence; neither was rerun for prose changes.
 
 - Actual paired H264/H265 SDP generation → receiver validation → target apply/readback,
   including IPv4/IPv6, section/group normalization, coherent concurrent snapshots,

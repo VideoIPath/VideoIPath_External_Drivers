@@ -1,12 +1,13 @@
-//! Device-facing capabilities. These types describe observed simulator state, not
-//! SPEC request envelopes. A real adapter can implement the same narrow contract.
+//! Vendor-operation seam used by the handlers in `application.rs`.
+//! Start at [`Device`] when replacing the simulator with a physical device API.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, net::IpAddr};
 
 pub type Values = BTreeMap<String, Value>;
 
-/// Canonical scoped identity; the transparent `Option` makes the root JSON null.
+/// Resolve parameters by (location, local ID), never the local ID alone.
+/// Root is JSON null; module and port locations match the advertised structure.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Location(pub Option<ModuleLocation>);
@@ -191,8 +192,8 @@ pub struct Streaming {
     pub ttl: u8,
 }
 
-/// Only validated supported fields are retained. There is no original SPEC frame
-/// and no generic JSON bag to make a last-request echo masquerade as readback.
+/// Fields supported by this example's format mapping. Adapt both the request
+/// mapping and vendor readback together so configuration checks compare like state.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Format {
     pub attributes: BTreeMap<String, String>,
@@ -226,31 +227,56 @@ impl std::fmt::Debug for MediaState {
     }
 }
 
-/// Native return-position futures keep this example statically dispatched. No
-/// async-trait allocation or concrete transport dependency crosses this boundary.
-/// Implementations must serialize conflicting operations and return observed state.
-/// In particular, these writes MUST NOT also emit their own causal value events.
+/// Six operations chosen for this sample, not a trait mandated by SPEC-23.
+/// Trim or split this seam for a smaller device and advertise only its capabilities;
+/// unsupported requests must still receive an error rather than fake success.
+/// Serialize conflicting vendor operations. Return observed state, and leave causal
+/// value events to `application::set_values` so the session can send its response first.
 pub trait Device: Send + Sync {
+    /// Fetch current readable values for one advertised location from the vendor API.
+    /// Use one coherent snapshot for related sensors; do not substitute defaults or
+    /// stale data on failure. `application::dispatch` selects IDs for get_dynamic_values
+    /// and turns a failed read into a correlated error, not a per-ID error object.
     fn read_values(
         &self,
         location: Location,
     ) -> impl Future<Output = Result<Values, Failure>> + Send;
+    /// Set the addressed vendor parameter and return its observed value after readback.
+    /// `application::set_values` validates input, records failures, and reports actual
+    /// changes even when the device normalizes or only partly applies a request.
+    /// For a write-only action, confirm acceptance without inventing readable state.
+    /// If transmission may have occurred, report ambiguity instead of retrying; do
+    /// not independently publish this write's causal event before its response.
     fn set_value(
         &self,
         location: Location,
         id: String,
         value: Value,
     ) -> impl Future<Output = Result<Value, Failure>> + Send;
+    /// Read the full active vendor alarm list for the alarms branch in application::dispatch.
+    /// Missing entries clear existing alarms. Return an error on read failure;
+    /// an empty list means none active or intentionally unsupported alarm reporting.
     fn alarms(&self) -> impl Future<Output = Result<Vec<Alarm>, Failure>> + Send;
+    /// Fetch SDP for the addressed sender in application::dispatch's get_sender_sdp branch.
+    /// Some(text) is available SDP; None is temporary absence (disabled or pending).
+    /// Unsupported capability or a failed vendor read is an error, not None.
     fn sender_sdp(
         &self,
         key: PortKey,
     ) -> impl Future<Output = Result<Option<String>, Failure>> + Send;
+    /// Apply transport/format state through the vendor API; None must disable the port.
+    /// `application::set_ipt` and the check_ipt_configuration branch read back afterward.
+    /// Report unsupported requirements, partial failure, or an uncertain transmitted
+    /// outcome truthfully; successful API acceptance alone does not prove device state.
     fn configure(
         &self,
         key: PortKey,
         state: Option<MediaState>,
     ) -> impl Future<Output = Result<(), Failure>> + Send;
+    /// Read actual port enablement and supported transport/format fields from the device.
+    /// Normalize them like protocol::media_state; None means observed disabled state,
+    /// not unavailable data. Never echo a saved request. application::set_ipt verifies
+    /// writes here; check_ipt_configuration uses the same read to detect and repair drift.
     fn configuration(
         &self,
         key: PortKey,

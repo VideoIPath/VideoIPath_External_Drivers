@@ -2,189 +2,134 @@
 
 <img width="1940" height="520" alt="Nevion VideoIPath external drivers banner" src="https://github.com/user-attachments/assets/e236e8ea-7787-414f-a728-822985695e19" />
 
-$\Large\color{green}{\textsf{About This Example}}$
+$\Large\color{green}{\textsf{Build Your Own External Driver}}$
 
-This is a Rust reference implementation for the [VideoIPath External Drivers repository](../../README.md). It helps contributors understand, build, and test their own external drivers through documented, runnable examples of the External Driver API.
-
-The driver connects the external-driver protocol to a **separate simulated device**. Explore device control, monitoring, and failure recovery without physical equipment. Docker Compose runs both processes; native Rust commands support local development.
-
-Please read the [Contributing Guidelines](../../CONTRIBUTING.md) and [Code of Conduct](../../CODE_OF_CONDUCT.md) before contributing.
-
-> [!IMPORTANT]
-> **Buildable, locally tested reference.** Source, a locked dependency graph, simulator controls, tests, and container artifacts are included. The [coverage ledger](docs/COVERAGE.md) distinguishes implemented behavior, limited examples, and remaining work—this is not a claim of complete protocol or release conformance.
-
-> [!WARNING]
-> **VideoIPath compatibility is unverified.** No VideoIPath instance is currently available for validation. Integration testing against an identified release and backend SHA will be completed as separate work. Local simulator tests will not establish compatibility with VideoIPath or a physical device.
-
-> [!NOTE]
-> This content is provided “as is,” without warranty. See the repository's [license](../../LICENSE) and [disclaimer](../../README.md). This example is a learning and development reference. Validate your implementation against the intended VideoIPath release and target device before deploying it in production.
-
-$\Large\color{green}{\textsf{What is an External Driver?}}$
-
-An external driver is a standalone process that translates between VideoIPath's external-driver protocol and a device API. It runs outside VideoIPath and initiates its own connection to the backend.
-
-This example uses Rust for that translation layer and a simulator in place of a physical device. It is **not** an external driverhost, which is a separate feature for running existing internal VideoIPath drivers outside the backend process.
-
-$\Large\color{green}{\textsf{Architecture}}$
+Use this runnable example to learn how to expose **your device's controls, status, alarms and media endpoints** through the VideoIPath External Driver API. Start with one parameter, follow a request through to device readback, then add only the capabilities your device supports.
 
 ```text
-VideoIPath
-    |
-    | SPEC-23: JSON over a TLS WebSocket
-    | Connection initiated by the driver
-    |
-Rust example driver
-    |
-    | Separate simulator API: requests, readback, and events
-    | Local Unix-domain socket; no published network port
-    |
-Simulated device
+VideoIPath  <-- SPEC-23 JSON over WebSocket -->  Your driver  <-- vendor API -->  Your device
+                                              ^ replace the example's simulator adapter
 ```
 
-The Compose deployment runs the driver and simulator as separate services. The simulator owns its device state, so configuration writes can be checked through independent readback rather than merely echoing the request. Explicit scenarios demonstrate local changes, alarms, configuration drift, and failures.
-
-$\Large\color{green}{\textsf{What This Example Demonstrates}}$
-
-These are control-plane examples, verified locally to the extent recorded in [VALIDATION.md](VALIDATION.md). Consult the [coverage ledger](docs/COVERAGE.md) for the precise limits of each feature.
-
-| Area | Examples |
-| --- | --- |
-| Identity and structure | Stable node and element IDs; modules; senders, receivers, generic ports, and network interfaces |
-| Parameters | Boolean, numeric, and enumerated string values; device, module, and port scopes; read-only, read-write, and write-only access |
-| GPIO and events | GPI/GPO behavior, independent simulated-device changes, and asynchronous value updates |
-| Alarms | Full active-alarm snapshots; severities and locations; asynchronous raise, refresh, clear, and poll requests |
-| SDP | Sender SDP reads and receiver SDP configuration, including unavailable and unsupported cases |
-| IP transport | Sender/receiver enable and disable, main/spare streams, bulk configuration, and per-port failures |
-| Format and transport options | Documented format attributes, FEC, and SRT configuration, modeled without generating media |
-| Configuration checks | Actual simulated-state comparison, drift detection, repair, and readback |
-| Advanced routing | Interface redundancy, receiver-to-sender resource links, configuration ordering, and multi-vertex/sub-index examples; unresolved sender-to-sender semantics remain documented |
-| Lifecycle and failures | Authentication, keepalive, reconnect, cancellation, overload, partial failures, and graceful shutdown |
-
-$\Large\color{green}{\textsf{Limitations and Boundaries}}$
-
-- The simulator models **control-plane state**, not real media. Accepting an SRT or FEC configuration does not demonstrate a working SRT or FEC implementation.
-- The driver does not create VideoIPath connections, modify groups, program switches, or access the VideoIPath database. Orchestration belongs outside the driver.
-- Firmware upgrades, device backup/restore, and automatic active/active driver redundancy are outside this example's scope.
-- Device status can be exposed through ordinary read-only parameters; there is no dedicated SPEC-23 metrics message.
-- Ambiguous or release-specific protocol details are identified explicitly rather than filled in with invented wire fields. Non-null IP overrides and sender-to-sender partner selection remain blocked on evidence.
-- SDP includes single-stream H.264/H.265 and a validated two-stream `DUP` example with matching receiver configuration. Single-stream MP2T video and L16/L24 audio reception are also covered. Full ST 2110 format generation remains outside the implemented subset; see the [redundant SDP walkthrough](docs/REDUNDANT_SDP.md).
-
-## 1. Purpose and Scope
-
-The example aims to cover every documented SPEC-23 capability and meaningful payload variant through a progression from simple monitoring to advanced configuration. The current fixed device model exposes several port types and two modules. [Scenario walkthroughs](docs/SCENARIOS.md) exercise individual features without requiring a different device identity for each lesson.
-
-The implementation emphasizes idiomatic Rust, explicit ownership, asynchronous I/O, secure defaults, bounded resources, and measured latency. Inline comments and Rust documentation explain **why** protocol rules, security checks, and concurrency decisions exist—not simply repeat what the code does.
-
-## 2. Communication Model
-
-The documented connection shape is:
-
-```text
-wss://<videoipath-virtual-ip>/x-driver/v1?node_id=<stable-uuid>
-```
-
-Authentication uses an `Authorization: Bearer <token>` header, never a token in the URL. The node UUID identifies one simulated device and must remain stable across driver restarts.
-
-The driver preserves request IDs, responds to unsupported requests with correlated errors, and never answers an incoming `error` message. Keepalives reflect device health rather than just process liveness. See the [commented frame walkthrough](docs/PROTOCOL.md).
+The included Rust driver uses a separate simulated device so you can study reads, writes, local changes and failures without equipment. The simulator's Unix-socket API is **not** part of the VideoIPath API; replace it with your device's HTTP, TCP, serial or SDK interface. The example is a source reference, not a framework you must adopt wholesale.
 
 > [!IMPORTANT]
-> One node ID must have one active driver owner. A replacement connection with the same ID supersedes the old connection; scaling replicas for that ID can cause continuous reconnects.
+> Source, tests and Docker Compose are implemented and locally tested. This example has **not been commissioned against a VideoIPath release or physical device**. Its local models are not an official schema; validate your driver against your intended release and firmware. Exact evidence and limitations are in [VALIDATION.md](VALIDATION.md) and the [coverage ledger](docs/COVERAGE.md).
 
-## 3. Rust Design
+## 1. Start with the capability you need
 
-| Component | Responsibility |
-| --- | --- |
-| Startup and configuration | Validate immutable settings, stable identity, and singleton ownership before connecting |
-| Protocol and session | Encode/decode SPEC-23, correlate requests, supervise reconnects, and serialize bounded outbound traffic |
-| Capability handlers | Implement parameter, alarm, SDP, and IP-configuration semantics independently of transport |
-| Parameter registry | Keep advertised metadata, canonical identities, validation, and runtime behavior consistent |
-| Device adapter | Translate application operations to the simulator API and confirm observed state |
-| Simulated device | Own state and generate controlled events, drift, and faults independently of the driver |
+You do not need media routing to expose a temperature or gain control. Keep unsupported capabilities out of your structure, and return a correlated error for unsupported requests rather than pretending success.
 
-Rust **1.98.1**, Edition **2024**, and direct dependency releases were checked against authoritative upstream sources on **2026-09-30**. `Cargo.lock` fixes the tested graph; container bases are digest-pinned. See [VALIDATION.md](VALIDATION.md) for the version inventory and [DESIGN.md](DESIGN.md) for ownership, retries, and dependency boundaries.
+| Your device needs to… | External Driver API | What to implement / example to study |
+| --- | --- | --- |
+| Describe itself and its controls | `get_structure` | Stable IDs and parameter **definitions**, not readings. Start in [`Registry::new`](src/registry.rs). |
+| Report status or sensor readings | `get_dynamic_values` | Read fresh device state, resolve `(location, local_id)`, return requested known IDs. Follow that branch of `dispatch` in [application.rs](src/application.rs). |
+| Change a setting or trigger an action | `set_dynamic_values` | Validate, apply and confirm; report failures per ID. Follow `set_values` in [application.rs](src/application.rs). |
+| Report a front-panel/GPI change | `async_values_changed` | Translate actual device events to scoped changes. Study [event encoding](src/protocol.rs) and [value/event frames](docs/PROTOCOL.md#dynamic-values); do not advertise GPI from demand reads alone. |
+| Report active faults | `alarms`, optional async alarm messages | Return the complete active set; omission clears an alarm. Follow the [alarm frames](docs/PROTOCOL.md#alarms). |
+| Expose routable senders/receivers | `get_structure`, `set_ipt_configurations` | Describe ports/interfaces, apply each configuration, handle null as disable and return per-port failures. Follow `set_ipt` in [application.rs](src/application.rs). |
+| Supply or consume SDP | `get_sender_sdp`, receiver configuration | Read/generate truthful sender SDP or apply receiver SDP only when advertised. See [SDP frames](docs/PROTOCOL.md#ipt-configuration-and-sdp) and the optional [main/spare walkthrough](docs/REDUNDANT_SDP.md). |
+| Detect and repair configuration drift | `check_ipt_configuration` | Compare supported fields with actual device state; reapply and reread when `set_again` is true. Follow that branch of `dispatch` in [application.rs](src/application.rs). |
+| Select internal processing resources | Resource links and `sub_index` | Use only for devices that need resource routing. See [receiver selection](docs/PROTOCOL.md#selecting-a-receiver-resource) and [advanced configurations](docs/PROTOCOL.md#partial-failure-and-advanced-forms). |
 
-## 4. Parameters, GPIO, and Alarms
+## 2. Follow one control from definition to device
 
-Examples show successful operations and important edge cases: invalid types, read-only writes, unknown IDs, partial failures, coherent sensor snapshots, and changes occurring outside a driver request.
+The example's device-level `audio_gain` is a useful first lesson. Its range of −20 to +20 dB in 0.5 dB steps is **simulator policy**, not an API requirement. For your device, use its real range and conversion rules.
 
-Changed values caused by a request are published only after its correlated response is delivered. GPI examples use independent simulator events rather than demand reads. Full alarm polling is authoritative: an alarm omitted from the next snapshot is cleared. Private target revisions detect stale changes before transmission; concurrent conflicts retire the session rather than guessing state. Full event-history reconciliation remains outside this example's current implementation.
+**Describe it:** `get_structure.data.dynamic_values.audio_gain` contains type, range and access metadata. `Registry::new` supplies that definition; `Parameter::validate` enforces it. The default initializes simulated state—it does not instruct a real device to reset on connection.
 
-## 5. Endpoint Configuration and Routing
+**Read it:** VideoIPath sends this request; the driver calls the device and responds with the observed value. Here the initial observation is 0 dB:
 
-Sender and receiver examples cover configuration, disabling, the supported SDP subset, redundant streams, and format options. Configuration checks read the simulator's state and repair drift when requested; they do not return unconditional success.
+```json
+{"message_id":10,"message_type":"get_dynamic_values","data":{"location":null,"ids":["audio_gain"]}}
+```
 
-Advanced scenarios explain resource links and dynamically addressed streams separately. Modeled configuration success is distinct from actual media delivery.
+```json
+{"message_id":10,"message_type":"get_dynamic_values","data":{"audio_gain":0.0}}
+```
 
-## 6. Security, Latency, and Resilience
+**Set it:** translate the value into a vendor command and read the device back. These are three separate frames, in order, for a confirmed change from 0 to 2.5 dB:
 
-| Design goal | Approach |
-| --- | --- |
-| Secure transport | TLS certificate and hostname verification, with explicit trusted-CA support |
-| Secret handling | Deployment-time credentials, redacted diagnostics, and no secrets in URLs, command arguments, or images |
-| Low latency | Event-driven updates, coherent bulk reads, minimal conflicting-operation serialization, and measured response times |
-| Bounded work | Queue, frame, batch, concurrency, and deadline limits; no unbounded task creation |
-| Recovery | Bounded reconnect backoff with jitter; fail fast on permanent authentication/configuration/TLS errors |
-| Safe writes | Readback and explicit ambiguous-outcome handling; no blind replay of write-only actions |
-| Session isolation | Cancel obsolete work and suppress late responses after reconnect or shutdown |
+```json
+{"message_id":11,"message_type":"set_dynamic_values","data":{"location":null,"values":{"audio_gain":2.5}}}
+```
 
-Low latency is a measurement goal, not a universal performance claim. Local tests cover slow-device conditions and saturation. `cargo run --locked --release --example latency` measures Unix-socket snapshot round trips; it does not measure VideoIPath or network latency.
+```json
+{"message_id":11,"message_type":"set_dynamic_values","data":{}}
+```
 
-The [opt-in soak workload](docs/SOAK.md) runs the actual driver and simulator as
-separate processes, exercises fault/reconnect recovery, and records bounded
-latency histograms and driver RSS. Use `SOAK_SECONDS=120 sh scripts/soak.sh`;
-normal tests include a short version, while manual CI runs the timed workload.
+```json
+{"message_id":null,"message_type":"async_values_changed","data":{"location":null,"values":{"audio_gain":2.5}}}
+```
 
-## 7. Building and Running
+An empty set-response map means no failed IDs; it is not a value echo. A partial failure instead returns failed IDs mapped directly to error strings. Send a causal change only **after the response is delivered**, and only for an observed change. Never replay an action just because its acknowledgement was lost.
 
-From this directory, with Rustup installed:
+Trace the lesson in this order:
+
+```text
+registry.rs: definition + validation
+  → application.rs: dispatch (get_dynamic_values) / set_values
+  → domain.rs: Device::read_values / Device::set_value
+  → device.rs: simulator adapter (replace with your vendor API)
+  → application.rs: readback + result
+  → session.rs: response, then deferred change
+```
+
+For module/port controls, keep the same local ID but supply its structured `location`; do not flatten a UI catalog address into the value map. See the [full frame guide](docs/PROTOCOL.md#dynamic-values) for scopes, read-only status, partial errors and write-only actions.
+
+## 3. Run the lessons without VideoIPath
+
+From this directory, with Rustup installed (the toolchain is pinned):
 
 ```sh
 cargo build --locked
+cargo test --locked --test documented_frames
+cargo test --locked --test capabilities
 cargo test --locked --all-targets
-cargo run --locked -- --version
 ```
 
-To explore without VideoIPath, follow the [native simulator setup](docs/SIMULATOR.md#native-controls), then use `simctl` to change values and alarms. No VideoIPath credentials are required for the simulator.
+The tests send protocol requests to handlers and use fake-backend/device boundaries to demonstrate the expected outcomes. `documented_frames` checks the walkthrough frames; `capabilities` includes malformed requests, partial writes, authoritative alarms and configuration drift. None of these commands needs a VideoIPath token or physical device.
 
-For Docker Compose, start with the [operator runbook](OPERATIONS.md): copy `.env.example` to a protected `.env`, supply your own node identity and connection settings, prepare the shared lock directory, and deliberately build the local image using `compose.build.yaml`. Then run the image-only deployment. An unedited `.env.example` intentionally cannot start a connected driver.
+For interactive changes, use the [native simulator controls](docs/SIMULATOR.md#native-controls) and [scenarios](docs/SCENARIOS.md). `simctl` changes the simulated device; it **does not send SPEC frames**. The [native end-to-end test](tests/native_end_to_end.rs) demonstrates the actual driver process with a local TLS test backend. The simulator models control state, not media transmission.
 
-The runtime image is non-root and distroless, with no shell or compiler. No prebuilt registry image is published. Package version is **0.2.0**; Linux amd64 is the locally exercised platform, not a promise of other-platform or VideoIPath-release compatibility.
+## 4. Adapt the example to your device
 
-## 8. Development and Test Sequence
+Start with the [worked adaptation guide](docs/EXTENDING.md), not a copy of every simulated feature.
 
-| Step | Milestone | Required evidence |
+| Keep the principle | Replace for your device | Leave out unless needed |
 | --- | --- | --- |
-| 1 | Foundation | Verified dependency versions, startup validation, secure deployment skeleton |
-| 2 | Protocol and structure | Typed codecs, validated references, positive and negative fixtures |
-| 3 | Simulator and session | Independent state/readback/events; fake-backend lifecycle and failure tests |
-| 4 | Monitoring and control | Scoped parameters, GPIO, alarms, partial failures, and event ordering |
-| 5 | Media configuration | SDP, sender/receiver configuration, drift checks, and advanced scenarios |
-| 6 | Local delivery | Native run, clean container build, security scan, load tests, and operator documentation |
-| 7 | VideoIPath acceptance | Separate future work against a recorded release/backend SHA |
+| Definitions and runtime validation agree | Parameter IDs, units, ranges and vendor conversions | Demonstration values, hidden namespaces and unused scopes |
+| Stable identity and truthful structure | Product identity, modules, ports and interface references | Media endpoints on a monitoring-only device |
+| Read actual state; confirm writes | Simulator adapter with one vendor API adapter | Simulator process, control socket, private revisions and fault controls |
+| Respect operation-specific response shapes | Supported media fields and normalization | SDP/FEC/SRT, SIPS and resource links the device cannot honor |
+| Bound work; isolate reconnects and cancellation | Timeouts, pacing and event reconciliation for the vendor API | This example's exact module/trait layout as a supposed API requirement |
 
-## 9. Validation and Compatibility
+Keep vendor types and transport errors inside your adapter. The sample `Device` trait is a teaching boundary, not an SDK interface mandated by SPEC-23; trim or split it for your capability set. Do not fill unused methods with fake success.
 
-No VideoIPath instance or target-release schema/capture is currently available. No published formal external JSON Schema is available in the reference set used for planning. Derived Rust models and local fixtures must not be presented as official schema conformance evidence.
+## 5. Connect and commission your driver
 
-Future integration work must verify the authenticated session, accepted structure, discovery, Inventory **Device UP**, complete parameter catalog, runtime reads/writes with simulator readback, Panel presentation, asynchronous updates, and recovery. Passing one layer does not prove the next.
+The driver is the client of `wss://<virtual-ip>/x-driver/v1?node_id=<stable-uuid>`, with an `Authorization: Bearer <token>` header. Preserve the node UUID for the same physical device and run **one active owner**; a second session with that ID replaces the first. Verify TLS and never put tokens in URLs, logs or command arguments.
 
-## 10. Deployment Notes
+Preserve each request ID and successful response type. Unsupported/failed requests receive `error`; incoming `error` messages get no reply. Echo keepalives only while device contact is healthy, and keep slow device I/O from blocking them. The [transport walkthrough](docs/PROTOCOL.md#transport-and-envelope) and [session code](src/session.rs) show these rules.
 
-- Prefer a managed host outside the VideoIPath cluster. VideoIPath does not deploy or supervise this container.
-- Run non-root with a read-only root filesystem, dropped capabilities, and no published ports by default.
-- Keep populated environment files and secrets out of source control and image layers.
-- Use one driver instance per node ID, with a process-held lock against same-host duplicates. Cross-host ownership remains an operator responsibility.
-- Distinguish local liveness from dependency readiness: a healthy container does not prove that VideoIPath is connected.
-- Stop the old singleton before an upgrade or rollback and preserve its node identity.
+For containers, follow [OPERATIONS.md](OPERATIONS.md) and the complete [.env.example](.env.example). The supplied Compose deployment runs the driver and simulator separately; replace the simulator service and private socket settings when integrating your device. No prebuilt registry image is published. VideoIPath does not deploy this process, and an external driver is not an *external driverhost*.
 
-See [OPERATIONS.md](OPERATIONS.md) for commands, CA/token rotation, singleton upgrade/rollback, health semantics, and the optional Linux boot launcher.
+Commission in order: authenticated connection → accepted structure → discovery/Inventory **Device UP** → full parameter catalog → read → controlled write with device readback and restoration → independent event/Panel update → loss/reconnect recovery. Record the exact VideoIPath release/backend SHA and device firmware. A populated picker, successful local test or healthy container alone does not establish working device control.
 
-## 11. Extending and Contributing
+## Reference material when you need it
 
-The [extension guide](docs/EXTENDING.md) explains how to replace the simulator adapter with a real device API while keeping protocol and capability boundaries clear. A real driver must advertise only capabilities its target can honor and must be validated against that device's firmware and the intended VideoIPath release.
+| Question | Read |
+| --- | --- |
+| What are the complete requests, responses and failure shapes? | [Protocol frames](docs/PROTOCOL.md) |
+| How do I map my device to these operations? | [Adaptation guide](docs/EXTENDING.md) |
+| How can I exercise alarms, drift, GPIO and advanced configuration? | [Scenarios](docs/SCENARIOS.md), [paired SDP](docs/REDUNDANT_SDP.md) |
+| Why does this Rust implementation serialize/cancel work this way? | [Design notes](DESIGN.md) |
+| How do I deploy, rotate credentials, upgrade or roll back? | [Operator runbook](OPERATIONS.md) |
+| Which variants are implemented and what still needs evidence? | [Coverage](docs/COVERAGE.md), [wire questions](docs/WIRE_EVIDENCE.md), [validation](VALIDATION.md) |
+| How do I exercise longer-running recovery and resource bounds? | [Opt-in soak](docs/SOAK.md) |
 
-Contributions should include explanatory inline comments, positive and failure-case tests, and documentation that separates observed behavior from assumptions. Follow the repository's [contribution requirements](../../CONTRIBUTING.md), including its licensing and maintenance policy.
+The SDP examples cover a bounded subset, not full ST 2110; populated IP overrides and sender-to-sender partner selection still require authoritative wire evidence. Do not infer physical SRT, FEC or redundancy capability from simulated configuration storage. Keep connection orchestration and VideoIPath database access outside your driver.
 
-See [third-party and distribution notes](THIRD_PARTY.md) before redistributing a compiled artifact.
+See the [contribution guidelines](../../CONTRIBUTING.md), [code of conduct](../../CODE_OF_CONDUCT.md) and [distribution notes](THIRD_PARTY.md) before contributing or packaging. This example is provided “as is,” without warranty; see the [license](../../LICENSE) and repository disclaimer.
 
-[Back to the repository guide](../../README.md) · [All examples](../README.md) · [Nevion VideoIPath](https://nevion.com/videoipath)
+[Repository guide](../../README.md) · [All examples](../README.md) · [Nevion VideoIPath](https://nevion.com/videoipath)

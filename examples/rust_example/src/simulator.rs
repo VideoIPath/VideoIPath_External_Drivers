@@ -1,4 +1,8 @@
-//! Independent target and its simulator-only Unix protocol; never SPEC-23 frames.
+//! A stand-in for physical equipment so API lessons can run without hardware.
+//! State lives here, separately from the driver, to demonstrate independent
+//! readback, front-panel-like changes and faults. Neither this Unix protocol nor
+//! its revision scheme belongs in SPEC-23. A real driver uses the vendor API
+//! instead; storing modeled FEC/SRT state here does not implement those transports.
 use crate::{
     domain::*,
     registry::{Access, Registry},

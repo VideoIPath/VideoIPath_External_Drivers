@@ -36,6 +36,13 @@ not SPEC frames. No scenario-selection CLI exists.
 
 ### Test index
 
+For a first API lesson, start with
+[`readme_gain_frames_follow_observed_device_state`](../tests/documented_frames.rs):
+it runs the README's read/write/notification frames against independently owned
+simulator state and checks that an unchanged write produces no second change.
+The index below is for deeper coverage review, not required reading before adapting
+[one real parameter](EXTENDING.md#first-increment-one-real-parameter).
+
 Names refer to exact test functions. Several rows intentionally share a test;
 their gap column narrows what that test actually establishes.
 

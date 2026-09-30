@@ -1,6 +1,6 @@
-//! Capability handlers know neither WebSockets nor Unix sockets. They return
-//! exactly one response and a list of *deferred* causal notifications. The
-//! session must acknowledge delivery of that response before sending changes.
+//! Start at `dispatch` to follow each SPEC-23 request into a device operation.
+//! `set_values` and `set_ipt` show partial failures and physical readback;
+//! the session sends the returned response before its causal change events.
 use crate::{
     domain::*,
     protocol::{self, *},
@@ -45,6 +45,8 @@ async fn dispatch<D: Device>(
 ) -> Result<Value, Failure> {
     match request.message_type.as_str() {
         "get_structure" => {
+            // Publish definitions so VideoIPath can discover controls and ports.
+            // Current parameter values belong in get_dynamic_values, not here.
             registry.validate()?;
             Ok(registry.structure())
         }
@@ -65,9 +67,10 @@ async fn dispatch<D: Device>(
             }) {
                 return Err(Failure::WriteOnly);
             }
-            // One fresh coherent snapshot, never one target call per parameter.
-            // Local policy: an explicitly empty list selects nothing. This edge
-            // remains target-verification work because the guide is ambiguous.
+            // Read related sensors once, then select requested known IDs. Unknown
+            // IDs are omitted; a failed device read becomes a correlated error.
+            // No IDs selects advertised readable values in this sample. An empty
+            // list selects none here; verify that ambiguous edge with your target.
             let observed = device.read_values(data.location.clone()).await?;
             let selected: Values = observed
                 .into_iter()
@@ -91,6 +94,8 @@ async fn dispatch<D: Device>(
         }
         "set_dynamic_values" => set_values(device, registry, decode(&request.data)?, changes).await,
         "alarms" => {
+            // This is the complete active snapshot, not a delta: omitted alarms
+            // are cleared. A failed read must not become an empty successful list.
             let alarms = device.alarms().await?;
             let mut identities = BTreeSet::new();
             for alarm in &alarms {
@@ -104,6 +109,8 @@ async fn dispatch<D: Device>(
             Ok(json!(alarms))
         }
         "get_sender_sdp" => {
+            // Return a string when available, null when temporarily absent, and
+            // an error for unsupported SDP or a failed device read.
             let data: SdpRequest = decode(&request.data)?;
             let key = PortKey {
                 module_id: data.module_id,
@@ -119,6 +126,9 @@ async fn dispatch<D: Device>(
         }
         "set_ipt_configurations" => set_ipt(device, registry, decode(&request.data)?).await,
         "check_ipt_configuration" => {
+            // Compare supported fields with actual device state, not the last
+            // request. On drift, set_again permits reapply followed by readback;
+            // failed reapply/readback is an error, not a successful comparison.
             let data: IptCheck = decode(&request.data)?;
             let direction: Direction = decode(
                 data.config
@@ -143,6 +153,9 @@ async fn dispatch<D: Device>(
     }
 }
 
+// Process each value independently: response data is the direct ID-to-error map,
+// with {} meaning success. Readback can reveal changes even after a failed write;
+// defer those observed changes until the session has delivered the response.
 async fn set_values<D: Device>(
     device: &D,
     registry: &Registry,
@@ -223,6 +236,9 @@ async fn set_values<D: Device>(
     Ok(Value::Object(failed))
 }
 
+// Report addressable failures in sender_config_errors/receiver_config_errors;
+// absent pairs succeeded. Invalid batch/module/identity errors fail the request.
+// A null enabled_config becomes None: apply and verify a disable, not a no-op.
 async fn set_ipt<D: Device>(
     device: &D,
     registry: &Registry,

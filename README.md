@@ -7,6 +7,26 @@ This guide is provided by Nevion to encourage 3rd party developers to create and
 
 Please read the Code of Conduct and Contributing Guidelines before getting started.
 
+$\Large\color{green}{\textsf{Start Building a Driver}}$
+
+The [implemented Rust example](examples/rust_example/) is a runnable guide to using
+the External Driver API with your own device. Follow one gain control from its
+advertised definition through a read, a confirmed write and an asynchronous update,
+then add only the capabilities your device needs. A separate simulated device lets
+you exercise the lessons without physical equipment or a VideoIPath connection.
+
+| Your next step | Start here |
+| --- | --- |
+| Learn which API messages map to your device's functions | [Rust example: capability map and first control](examples/rust_example/README.md#1-start-with-the-capability-you-need) |
+| Replace simulated I/O with a vendor API | [Build a driver for your device](examples/rust_example/docs/EXTENDING.md) |
+| Inspect complete request, response and error examples | [Protocol frame walkthrough](examples/rust_example/docs/PROTOCOL.md) |
+| Run the lessons locally | [Build and test without VideoIPath](examples/rust_example/README.md#3-run-the-lessons-without-videoipath) |
+
+The API is language-independent. This page retains introductory Python sketches;
+the [examples index](examples/README.md) distinguishes those sketches from the
+broader runnable Rust lessons. Neither a sample nor passing local tests replaces
+commissioning your driver against the intended VideoIPath release and device.
+
 > [!WARNING] 
 This content is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall Nevion or its contributors be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the content or the use of or other dealings in the content.
 
@@ -37,7 +57,7 @@ $\Large\color{green}{\textsf{Driver API for External Drivers}}$
 
 The Driver API provides external drivers with the following capabilities:
 
-- Register with VideoIPath through a unique authentication token.
+- Connect using a bearer token and a stable node UUID for the device; tokens may be shared, but device identity must remain distinct.
 
 - Advertise Ethernet ports, sources, and destinations, along with inter-device topology.
 
@@ -74,7 +94,7 @@ $\Large\color{green}{\textsf{Limitation of Driver API}}$
 - Device firmware upgrade
 
 **Metrics**
-- Reporting metrics is not supported.
+- There is no dedicated metrics message. Expose device sensor/status readings as ordinary read-only dynamic values; advertise GPIO only when supported.
 
 **Deployment**
 - VideoIPath do not handle deployment of the external driver
@@ -92,7 +112,11 @@ $\Large\color{green}{\textsf{Limitation of Driver API}}$
 
 ## 1. Purpose and Scope
 
-This guide explains how to build a custom VideoIPath external driver as a standalone Python process. The driver translates between a device API and the VideoIPath external-driver protocol.
+This guide explains how to build a custom VideoIPath external driver as a standalone
+process. The driver translates between one device API and the VideoIPath
+external-driver protocol. The Python snippets below introduce individual concepts;
+use the [Rust example](examples/rust_example/) to trace complete operations,
+failure handling and device readback, regardless of the language you choose.
 
 >[!NOTE]
 VideoIPath  <-->  External driver  <-->  Device
@@ -120,7 +144,7 @@ VideoIPath  <-->  External driver  <-->  Device
 |------------------|----------------------| 
 |Connect to the VideoIPath backend as a client|Access or write to the VideoIPath database|
 |Translate protocol and device state|Implement VideoIPath connection-management logic|
-|Respond to every request|Depend on another VideoIPath driver|
+|Respond to every request except an incoming `error`|Depend on another VideoIPath driver|
 |Report local changes asynchronously|Silently ignore unsupported requests|
 
 ## 2. Communication model
@@ -187,6 +211,11 @@ For request/response messages, preserve the request message_id. Normally, the re
 
 ## 3. Recommended design
 
+The layout below is one teaching approach, not an API-mandated class hierarchy.
+Keep device I/O separate from protocol handling, and advertise only capabilities
+you implement. When starting your own driver, the [adaptation guide](examples/rust_example/docs/EXTENDING.md)
+shows the changes needed for one real parameter before adding media configuration.
+
 |driver.py|   |
 |------------------|----------------------| 
 | Parameter|validation and structure metadata|
@@ -200,6 +229,18 @@ Use registries rather than individual variables.
 This lets the same code advertise, read, validate, update, and log many parameters.
 
 ## 4. Parameter Class and Registry
+
+These compact Python snippets omit some production behavior. Apply the following
+rules when adapting them; the [runnable frame examples](examples/rust_example/docs/PROTOCOL.md)
+and Rust handlers demonstrate the fuller request flow.
+
+| Sketch shortcut | What your driver must do |
+| --- | --- |
+| Root-only lookup | Resolve the complete `(location, local_id)`; copying a location into a notification is not scoped lookup |
+| Truthiness fallbacks | Validate payload types and documented absent/null defaults; do not treat malformed data as an empty successful request |
+| `default` field | Define initialization/reset behavior from the device API; metadata must not silently reset physical state |
+| Writable implies GPIO | Advertise GPO/GPI only for behavior the target can honor; GPI needs reliable updates |
+| Cached request as configuration | Apply through the device API and read actual state back, including disable and drift checks |
 ```python
 from dataclasses import dataclass
 
