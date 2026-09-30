@@ -73,7 +73,7 @@ PARAMS = {
         "type": "string",
         "label": "Product",
         "description": "Which product to display",
-        "values": ["VidoeIPath", "Virtuoso"],   # omit for free-form text
+        "values": ["VideoIPath", "Virtuoso"],   # omit for free-form text
         "default": "VideoIPath",
         "access": "read_write",
         "gpi_capable": False,
