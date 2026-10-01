@@ -13,7 +13,6 @@ import websockets
 # ------------------------------------------------------
 # Edit this table to add/remove/rename parameters.
 # ------------------------------------------------------
-
 PARAMS = {
     "width": {
         "label": "Width",
@@ -44,7 +43,7 @@ PARAMS = {
     },
     "gpi": {
         "type": "boolean",
-        "label": "Logick in",
+        "label": "Logic in",
         "description": "Show or hide the logo overlay",
         "default": False,
         "access": "read_only",
@@ -53,7 +52,7 @@ PARAMS = {
     },
     "gpo": {
         "type": "boolean",
-        "label": "Logick out",
+        "label": "Logic out",
         "description": "Show or hide the logo overlay",
         "default": False,
         "access": "write_only",
@@ -62,7 +61,7 @@ PARAMS = {
     },
     "gpio": {
         "type": "boolean",
-        "label": "Logick in/out",
+        "label": "Logic in/out",
         "description": "Show or hide the logo overlay",
         "default": False,
         "access": "read_write",
@@ -192,7 +191,7 @@ def build_device_structure():
                         "label": "Receiver audio",
                         "dynamic_values": {},
                         "topology_info": {
-                            "format_type": "Audio",
+                            "format_type": "Video",
                             "sdp_support": True,
                             "sips": False,
                             "interface_options": [
@@ -243,11 +242,19 @@ def normalize_value(spec, value):
         return None, f"Value must be between {spec['min']} and {spec['max']}"
     return value, None
 
+def format_msg(direction, msg):
+    arrow = "TX: " if direction == "TX" else "RX: "
+    header = f"{arrow} {msg.get('message_type')}  (id={msg.get('message_id')})"
+    data = msg.get("data")
+    if data is None or data == [] or data == {}:
+        return header
+    body = json.dumps(data, indent=2)
+    body = "\n".join("    " + line for line in body.splitlines())
+    return f"{header}\n{body}"
 
 # ------------------------------------------------------
 # Driver
 # ------------------------------------------------------
-
 class Driver:
 
     def __init__(self, websocket):
@@ -259,19 +266,37 @@ class Driver:
 
         payload = json.dumps(msg)
 
-        logging.info("TX %s", payload)
-
+        if msg.get("message_type") == "get_structure":
+            logging.info("%s", format_msg("TX", msg))
+        elif msg.get("message_type") != "keepalive":
+                logging.info("TX: %s", payload)
+        
         await self.websocket.send(payload)
 
+    async def send_async_values_changed(self, values):
+        """Driver-initiated set_dynamic_values towards VIP."""
+        if not values:
+            return
+
+        await self.tx({
+            "data": {
+                "location": None,
+                "values": values,
+            },
+            "message_id": None,
+            "message_type": "async_values_changed"
+        })
+    
     async def rx(self, raw):
-
-        logging.info("RX %s", raw)
-
+        
         try:
             msg = json.loads(raw)
         except Exception as ex:
             logging.error("Bad JSON: %s", ex)
             return
+        if msg.get("message_type") != "keepalive":
+            logging.info("RX: %s", raw)
+        
 
         await self.dispatch(msg)
 
@@ -357,6 +382,7 @@ class Driver:
         if msg_type == "set_dynamic_values":
 
             failures = {}
+            applied = {}
             values = (request.get("data") or {}).get("values", {})
 
             for name, raw_value in values.items():
@@ -373,14 +399,20 @@ class Driver:
 
                 old_value = self.params[name]
                 self.params[name] = new_value
+                applied[name] = new_value
                 logging.info("%s CHANGED: %s -> %s", name.upper(), old_value, new_value)
 
+            # 1) reply to the request
             await self.tx({
                 "message_id": msg_id,
                 "message_type": "set_dynamic_values",
                 "data": failures,
             })
+
+            # 2) send our own set_dynamic_values back for what was applied to update VideoIPath
+            await self.send_async_values_changed(applied)
             return
+
         #
         # EVERYTHING ELSE
         #
@@ -392,11 +424,9 @@ class Driver:
 
         await self.tx(response)
 
-
 # ------------------------------------------------------
 # Connection loop
 # ------------------------------------------------------
-
 async def connect_forever(args):
 
     ssl_context = None
@@ -442,11 +472,9 @@ async def connect_forever(args):
         logging.info("Reconnect in 5 seconds")
         await asyncio.sleep(5)
 
-
 # ------------------------------------------------------
 # CLI
 # ------------------------------------------------------
-
 def parse_args():
 
     parser = argparse.ArgumentParser()
@@ -474,7 +502,6 @@ def parse_args():
 
     return parser.parse_args()
 
-
 # ------------------------------------------------------
 # Main
 # ------------------------------------------------------
@@ -494,7 +521,6 @@ async def main():
     )
 
     await connect_forever(args)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
