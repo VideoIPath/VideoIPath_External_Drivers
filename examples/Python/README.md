@@ -1,8 +1,8 @@
-# VideoIPath External Driver example
+# VideoIPath External Driver external
 
 A Python reference implementation of a VideoIPath External Driver using WebSockets.
 
-The example connects to a VideoIPath server, exposes a configurable device structure, responds to protocol requests, stores dynamic values in memory, validates incoming value updates, and automatically reconnects after a disconnection.
+The external connects to a VideoIPath server, exposes a configurable device structure, responds to protocol requests, stores dynamic values in memory, validates incoming value updates, and automatically reconnects after a disconnection.
 
 ## Features
 
@@ -31,7 +31,7 @@ Install the dependency:
 python -m pip install websockets
 ```
 
-## Running the example
+## Running the external
 
 Assuming the source file is named `vip_external_driver_example.py`:
 
@@ -71,7 +71,7 @@ python vip_external_driver_example.py \
 
 ## Device Structure
 
-The example reports one module named `module-1`.
+The external reports one module named `module-1`.
 
 ### Senders
 
@@ -85,7 +85,7 @@ The example reports one module named `module-1`.
 | ID | Label | Format in the supplied code |
 |---|---|---|
 | `receiver-video` | Receiver video | Video |
-| `receiver-audio` | Receiver audio | Audio |
+| `receiver-audio` | Receiver audio | Video |
 
 > **Note:** The supplied code declares `receiver-audio` with `format_type: "Video"`. Change it to `"Audio"` if this receiver is intended to carry audio.
 
@@ -117,7 +117,7 @@ The `access`, `gpi_capable`, and `gpo_capable` fields are currently exposed as m
 
 ### Number
 
-Numbers are represented as integers. The example validates the configured minimum and maximum values.
+Numbers are represented as integers. The external validates the configured minimum and maximum values.
 
 Example parameter:
 
@@ -171,7 +171,7 @@ A string parameter can optionally define an allowed `values` list:
 }
 ```
 
-> **Important:** The supplied code contains `"VideoIPath"` in the allowed values but uses `"VideoIPath"` as the default. Correct the spelling in `values` as shown above so the default is also a valid selectable value.
+> **Important:** The supplied code contains `"VidoeIPath"` in the allowed values but uses `"VideoIPath"` as the default. Correct the spelling in `values` as shown above so the default is also a valid selectable value.
 
 ## Protocol Messages
 
@@ -341,7 +341,7 @@ Unsupported request types receive an error response:
 
 ## Logging
 
-Logging is enabled at `INFO` level. The example records:
+Logging is enabled at `INFO` level. The external records:
 
 - Connection attempts
 - Successful connections
@@ -367,7 +367,7 @@ Example:
 
 ## Reconnection Behavior
 
-When the connection ends or an exception occurs, the example:
+When the connection ends or an exception occurs, the external:
 
 1. Logs the exception.
 2. Waits five seconds.
@@ -376,7 +376,7 @@ When the connection ends or an exception occurs, the example:
 
 Dynamic values are recreated from their defaults after each successful reconnection because a new `Driver` instance is created.
 
-## Extending the example
+## Extending the external
 
 ### Add a Numeric Parameter
 
@@ -447,12 +447,12 @@ if name == "gpo":
 - Numeric step increments are advertised but not enforced.
 - Alarm responses are always empty.
 - Unknown IDs in `get_dynamic_values` are silently omitted.
-- The example does not actively send dynamic-value change notifications.
+- The external does not actively send dynamic-value change notifications.
 - The supplied code contains an unreachable `await self.tx(response)` after the `get_dynamic_values` response and `return`. It can be removed.
 
 ## Intended Use
 
-This example is suitable for:
+This external is suitable for:
 
 - External Driver prototyping
 - VideoIPath integration testing
@@ -462,3 +462,7 @@ This example is suitable for:
 - Training and demonstrations
 
 It is a development example and should be reviewed, secured, and extended before production use.
+
+## License
+
+No license was specified in the supplied source code. Add a license file and update this section before distributing the project.
