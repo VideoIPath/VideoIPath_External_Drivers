@@ -12,8 +12,9 @@ $\Large\color{green}{\textsf{Start Building a Driver}}$
 The [implemented Rust example](examples/rust_example/) is a runnable guide to using
 the External Driver API with your own device. Follow one gain control from its
 advertised definition through a read, a confirmed write and an asynchronous update,
-then add only the capabilities your device needs. A separate simulated device lets
-you exercise the lessons without physical equipment or a VideoIPath connection.
+then add only the capabilities your device needs. A small in-memory demonstration
+device lets you run the lessons without equipment, a second service or a VideoIPath
+connection. Replace its operations with your vendor API when building your driver.
 
 | Your next step | Start here |
 | --- | --- |

@@ -10,12 +10,10 @@ use serde_json::Value;
 async fn readme_gain_frames_follow_observed_device_state() {
     use rust_example::{
         application,
-        device::Client,
+        demo::DemoDevice,
         domain::{Device, Location},
-        simulator,
     };
-    use std::{os::unix::fs::PermissionsExt, time::Duration};
-    use tokio_util::sync::CancellationToken;
+    use std::sync::Arc;
 
     let frames: Vec<Value> = include_str!("../README.md")
         .split("```json\n")
@@ -27,69 +25,44 @@ async fn readme_gain_frames_follow_observed_device_state() {
         5,
         "keep the first lesson's five frames executable"
     );
-    let scratch = tempfile::Builder::new()
-        .permissions(std::fs::Permissions::from_mode(0o700))
-        .tempdir()
-        .unwrap();
-    let socket = scratch.path().join("target.sock");
-    let control = scratch.path().join("control.sock");
-    let stop = CancellationToken::new();
-    let (path, token) = (socket.clone(), stop.clone());
-    let server = tokio::spawn(async move { simulator::serve(&path, &control, token).await });
-    tokio::time::timeout(Duration::from_secs(5), async {
-        let device = loop {
-            if let Ok(device) = Client::connect(&socket, Duration::from_secs(1)).await {
-                break device;
-            }
-            tokio::task::yield_now().await;
-        };
-        let registry = Registry::new();
-        let definition = &registry.structure()["dynamic_values"]["audio_gain"];
-        assert_eq!(definition["value_info"]["type"], "read_write");
-        assert_eq!(definition["type_info"]["range"]["step"], 0.5);
-        let read = application::handle(
-            &device,
-            &registry,
-            serde_json::from_value(frames[0].clone()).unwrap(),
-        )
-        .await;
-        assert_eq!(read.response, frames[1]);
-        assert!(read.changes.is_empty());
+    let registry = Arc::new(Registry::new());
+    let device = DemoDevice::new(registry.clone());
+    let definition = &registry.structure()["dynamic_values"]["audio_gain"];
+    assert_eq!(definition["value_info"]["type"], "read_write");
+    assert_eq!(definition["type_info"]["range"]["step"], 0.5);
+    let read = application::handle(
+        &device,
+        &registry,
+        serde_json::from_value(frames[0].clone()).unwrap(),
+    )
+    .await;
+    assert_eq!(read.response, frames[1]);
+    assert!(read.changes.is_empty());
 
-        let set = application::handle(
-            &device,
-            &registry,
-            serde_json::from_value(frames[2].clone()).unwrap(),
-        )
-        .await;
-        assert_eq!(set.response, frames[3]);
-        assert_eq!(set.changes.len(), 1);
-        assert_eq!(protocol::event_frame(&set.changes[0]), frames[4]);
-        // Read the independently owned target state, not just the response map.
-        let observed = device.read_values(Location::root()).await.unwrap();
-        assert_eq!(observed["audio_gain"], 2.5);
+    let set = application::handle(
+        &device,
+        &registry,
+        serde_json::from_value(frames[2].clone()).unwrap(),
+    )
+    .await;
+    assert_eq!(set.response, frames[3]);
+    assert_eq!(set.changes.len(), 1);
+    assert_eq!(protocol::event_frame(&set.changes[0]), frames[4]);
+    // Read the model's state, not just the response map; this is not hardware evidence.
+    let observed = device.read_values(Location::root()).await.unwrap();
+    assert_eq!(observed["audio_gain"], 2.5);
 
-        let same = application::handle(
-            &device,
-            &registry,
-            serde_json::from_value(frames[2].clone()).unwrap(),
-        )
-        .await;
-        assert_eq!(same.response, frames[3]);
-        assert!(
-            same.changes.is_empty(),
-            "unchanged state must not cause a second notification"
-        );
-        device.close().await;
-    })
-    .await
-    .unwrap();
-    stop.cancel();
-    tokio::time::timeout(Duration::from_secs(2), server)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
+    let same = application::handle(
+        &device,
+        &registry,
+        serde_json::from_value(frames[2].clone()).unwrap(),
+    )
+    .await;
+    assert_eq!(same.response, frames[3]);
+    assert!(
+        same.changes.is_empty(),
+        "unchanged state must not cause a second notification"
+    );
 }
 
 #[test]

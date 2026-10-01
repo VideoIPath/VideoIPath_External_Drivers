@@ -38,3 +38,27 @@ fn canonical_package_version_is_reported_by_structure_and_executable() {
         format!("rust-example {}", env!("CARGO_PKG_VERSION"))
     );
 }
+
+#[test]
+fn runtime_cli_exposes_only_the_driver_and_local_diagnostics() {
+    let binary = env!("CARGO_BIN_EXE_rust-example");
+    let help = std::process::Command::new(binary)
+        .arg("--help")
+        .output()
+        .unwrap();
+    assert!(help.status.success());
+    let text = String::from_utf8(help.stdout).unwrap();
+    for command in ["driver", "health", "status", "--version"] {
+        assert!(text.contains(command));
+    }
+    for command in ["simulator", "simctl"] {
+        assert!(!text.contains(command));
+        let result = std::process::Command::new(binary)
+            .env_clear()
+            .arg(command)
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("unknown command"));
+    }
+}

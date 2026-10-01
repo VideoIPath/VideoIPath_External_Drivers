@@ -18,4 +18,4 @@ if ! docker compose --env-file "$env_file" -f compose.yaml -f compose.build.yaml
     echo 'Compose build-override validation failed (raw diagnostics suppressed).' >&2
     exit 1
 fi
-echo 'Compose deployment and local-build configurations are valid (values not printed).'
+echo 'Compose driver deployment and local-build configurations are valid (values not printed).'

@@ -3,12 +3,12 @@
 These are complete JSON WebSocket frames using the later SPEC-23 v1 baseline.
 They are teaching examples derived from the documented contract and current
 source, not captures accepted by a VideoIPath release. No live instance or
-release-specific decoder/schema fixture has been supplied. The simulator's Unix
-protocol is a separate API described in [SIMULATOR.md](SIMULATOR.md).
+release-specific decoder/schema fixture has been supplied. The default driver
+uses in-memory DemoDevice operations; there is no second device protocol to learn.
 
-The executable has no command for injecting these SPEC frames. A backend or a
-local test harness sends them to the driver. [SCENARIOS.md](SCENARIOS.md) contains
-the actual local CLI and explains what can be exercised without VideoIPath.
+Run `cargo run --locked --example api_walkthrough` to follow complete requests
+through the handlers offline. A connected backend sends frames over WebSocket.
+[SCENARIOS.md](SCENARIOS.md) maps each lesson to source and tests.
 
 ## Transport and envelope
 
@@ -63,7 +63,7 @@ link. `tx-1` and `rx-1` have the device-defined `format_id: "raw-video"`; this i
 resource metadata, not a promise of raw-video SDP support. `rx-audio` separately
 advertises Audio topology and the PCM SDP subset. The auxiliary module's display
 label is `Auxiliary Console 42`. Structure definitions describe capabilities, not current values. See the
-[fixture inventory](SCENARIOS.md#the-current-fixture) for its stable IDs.
+[registry source](../src/registry.rs) for its stable IDs.
 
 | Location | Wire value | Example local ID |
 | --- | --- | --- |
@@ -166,7 +166,7 @@ Fresh simulator poll:
 {"message_id":20,"message_type":"alarms","data":[]}
 ```
 
-After the scoped alarm command in [SCENARIOS.md](SCENARIOS.md#alarms), the driver
+For a device reporting the scoped fault below, the driver
 can forward this independent event and return this authoritative poll:
 
 ```json
@@ -281,7 +281,8 @@ normalization/readback tests, RFC references, rejection cases and local policy.
 {"message_id":33,"message_type":"check_ipt_configuration","data":true}
 ```
 
-After `simctl drift` removes that state, the same desired configuration with a
+After a local device change removes that state (the offline walkthrough calls
+`DemoDevice::configure` directly), the same desired configuration with a
 new request ID returns false. With `set_again: true`, it applies and rereads;
 true means observed agreement. Failed apply/readback is a correlated `error`.
 The comparison uses normalized supported domain state, not the original JSON.
@@ -351,4 +352,6 @@ The simulator stores and independently reads back that choice. A subsequent chec
 compares it; selecting `rx-audio` fails per port because no such link was advertised.
 Disabling the sender removes only the sender's state, not the receiver resources.
 These are modeled local selections, not proof of physical switching or target
-graph/resource-ID derivation. See `cargo test --locked --test resource_choices`.
+graph/resource-ID derivation. See `cargo test --locked --test demo_device`;
+the optional independent-transport version is
+`cargo test --locked --features device-lab --test resource_choices`.

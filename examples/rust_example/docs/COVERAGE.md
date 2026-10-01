@@ -14,6 +14,12 @@ has the stated scope, not that this document certifies its latest execution.
 
 ## How to read the tables
 
+**0.3 layout:** the default driver uses [DemoDevice](../src/demo.rs), not a second
+service. API handlers, registry and wire coverage remain shared. T10, T18, T19,
+T21, the transport portions of T22, and T23 require `--features device-lab` and
+exercise **optional test equipment**, not the default executable. Their prior
+measurements do not qualify the lean driver. T24/T25 cover the new default path.
+
 | Mark | Meaning |
 | --- | --- |
 | **M** | Modeled application/behavior exists in current source; no physical-media claim |
@@ -24,22 +30,22 @@ has the stated scope, not that this document certifies its latest execution.
 
 Source abbreviations are links: [R = registry](../src/registry.rs),
 [P = protocol](../src/protocol.rs), [A = application](../src/application.rs),
-[D = domain](../src/domain.rs), [U = Unix adapter](../src/device.rs),
-[S = simulator](../src/simulator.rs), [W = session](../src/session.rs),
+[D = domain](../src/domain.rs), [U = optional Unix adapter](../tools/device_lab/client.rs),
+[S = optional simulator](../tools/device_lab/simulator.rs), [W = session](../src/session.rs),
 [M = main/supervisor](../src/main.rs), [C = config](../src/config.rs),
 [TLS](../src/tls.rs), [L = node lock](../src/identity.rs).
 
-Runnable teaching entry points: [local simulator/CLI](SCENARIOS.md),
+Runnable teaching entry points: [offline API walkthrough](SCENARIOS.md),
 [wire frames](PROTOCOL.md), and [extension checks](EXTENDING.md#evidence-to-add-with-an-extension).
-Wire examples require a backend/test harness; `simctl` accepts its own commands,
-not SPEC frames. No scenario-selection CLI exists.
+`cargo run --locked --example api_walkthrough` supplies complete requests directly
+to handlers without a backend. The connected driver receives them over WebSocket.
 
 ### Test index
 
 For a first API lesson, start with
 [`readme_gain_frames_follow_observed_device_state`](../tests/documented_frames.rs):
-it runs the README's read/write/notification frames against independently owned
-simulator state and checks that an unchanged write produces no second change.
+it runs the README's read/write/notification frames against in-memory device state
+and checks that an unchanged write produces no second change.
 The index below is for deeper coverage review, not required reading before adapting
 [one real parameter](EXTENDING.md#first-increment-one-real-parameter).
 
@@ -71,6 +77,8 @@ their gap column narrows what that test actually establishes.
 | T21 | [resource_choices.rs](../tests/resource_choices.rs): structural duplicate/link-scoped IDs; two receiver partners applied, independently read back, checked and disabled; unsupported selection preserves previous state |
 | T22 | [sdp_redundancy.rs](../tests/sdp_redundancy.rs): paired H264/H265 generation and receive/readback, IPv4/IPv6, mid/group mapping, section normalization, drift/repair, coherent snapshots and negative cases; [documented_frames.rs](../tests/documented_frames.rs) checks walkthrough configurations |
 | T23 | [soak.rs](../tests/soak.rs): automatic two-cycle regression and ignored elapsed workload; actual driver/simulator children, loopback TLS, reads/writes/events/alarms/IPT, backend and target recoveries, bounded histogram/RSS checks; [measured scope](SOAK.md) |
+| T24 | [demo_device.rs](../tests/demo_device.rs): default in-memory adapter through API requests, readback, scoped values/actions, partial errors, alarm events/snapshots, SDP and IPT drift/repair; no physical-device claim |
+| T25 | [native_demo.rs](../tests/native_demo.rs): actual lean binary with local TLS; authentication, response/event ordering, teaching signal/alarm, reconnect persistence, restart reset, shutdown and redaction |
 
 ## Transport, envelope and compatibility
 
@@ -78,7 +86,7 @@ their gap column narrows what that test actually establishes.
 | --- | --- | --- | --- |
 | TR-01 | Client WebSocket; lower-case `/x-driver/v1`; virtual IP; HTTP 101 | **M** C/TLS/M; [transport](PROTOCOL.md#transport-and-envelope) | T12 real loopback TLS/WS; target virtual-IP deployment deferred |
 | TR-02 | Bearer header; 401 invalid auth; token absent from URL | **M** C/TLS/W | T12 positive/header and negative 401; no real token used |
-| TR-03 | System trust, custom CA, certificate/hostname checks | **M** TLS; [design](../DESIGN.md#security-and-state) | T12 trust success, untrusted CA, hostname mismatch, invalid material |
+| TR-03 | System trust, custom CA, certificate/hostname checks | **M** TLS; [ownership](../DESIGN.md#ownership-and-failure-rules) | T12 trust success, untrusted CA, hostname mismatch, invalid material |
 | TR-04 | Stable UUID across reconnect/restart; same-host singleton | **M** C/L/M; provisioned identity | T13 lock/config; T18 actual duplicate-process rejection and identity-preserving restart; no cross-host ownership claim |
 | TR-05 | Revocation closes shared-token sessions; duplicate-node takeover | **G** backend behavior, not implemented by driver | No target fixture; local singleton cannot prove backend takeover/revocation |
 | TR-06 | Transient reconnect; capped backoff/jitter; permanent failure | **M** M/W; readiness cleared before backoff | T12 classification, T11 generations, T17 bounded/saturating jitter and T18 process restart; not a full real-backend outage/revocation matrix |
@@ -91,7 +99,7 @@ their gap column narrows what that test actually establishes.
 | EN-07 | Future enum cases, superset evolution, older payload forms | **P/G** known enum cases accepted; unknown known-field enums rejected | No speculative `/extDriver/v1`, map-IPT, `sender_id` or `dynamic_values` aliases; release-specific compatibility fixture missing |
 | EN-08 | Async universal errors | **G** receive-side silence exists; no driver-originated async-error facility | SPEC says backend ignores these; local diagnostics remain authoritative |
 | KA-01 | Exact keepalive echo including extra fields | **M** W; [keepalive frame](PROTOCOL.md#transport-and-envelope) | T11 and session unit test use original text |
-| KA-02 | Keepalive independent of stalled handler; unhealthy target closes | **M** W/M/U; separate five-second transport-health probe | T11 busy-handler, overload and unhealthy cases; T18 actual binary keepalive/read trace; no duplicate parameter polling |
+| KA-02 | Keepalive independent of stalled handler; unhealthy target closes | **M** W/M; default checks model availability, optional U has a transport probe | T11 failure/loss fixtures; T25 default native path; a physical adapter must supply actual contact health |
 | KA-03 | 60-second inbound idle; no autonomous pings | **M** W | T11 paused-clock tests; outbound events and transport pong do not reset idle |
 | RT-01 | 10-second ordinary / 30-second IPT backend ceilings | **M** local work defaults 5/20 s, separate bounded delivery | T11 operation deadlines; not one absolute end-to-end budget; no performance guarantee |
 | RT-02 | Bounded writer, handlers, target operations, events; teardown | **M** W/U/S/M | T10/T11 saturation/cancellation, T17 transaction lane, T18 native smoke, T19 capacity workload; long-duration soak and quantitative queue/memory baseline remain separate |
@@ -101,7 +109,7 @@ their gap column narrows what that test actually establishes.
 | ID | Capability / variants | Implementation and example | Local tests and remaining gaps |
 | --- | --- | --- | --- |
 | ST-01 | Root `label`, `version`, `product_name`, optional `access_url` | **M/P** R emits first three; version comes from package metadata; access URL omitted | T2/T15/T18 response/version; non-null access URL and complete default-decoding fixture absent |
-| ST-02 | Modules, labels, stable list-scoped IDs, empty lists/maps | **M** R fixed two-module registry; [inventory](SCENARIOS.md#the-current-fixture) | T2/T14 validate metadata/maps/array shapes and duplicates; T15 display label; T18 restart identity; not a formal schema |
+| ST-02 | Modules, labels, stable list-scoped IDs, empty lists/maps | **M** R fixed two-module registry; [structure](PROTOCOL.md#structure-and-identity) | T2/T14 validate metadata/maps/array shapes and duplicates; T15 display label; T18/T25 restart identity; not a formal schema |
 | ST-03 | `senders_first`, `receivers_first`, `all` | **M** C/R/A startup `DRIVER_CONFIGURATION_ORDER`; all three applied | T15 observes device call order and invalid option; T18 receivers-first binary configuration. `all` is sequential, not atomic/parallel; cross-module scheduling remains backend-owned |
 | ST-04 | Sender/receiver `id`, `label`, `dynamic_values`, topology | **M** R | T2 generated map/scopes; no configurable structure selector |
 | ST-05 | Format type `Video`, `Audio`, `ASI`, `Ancillary`, null | **P/M** R includes each; P stores accepted control fields | T2 fixture validation; format-specific transport/media behavior is not modeled |
@@ -144,7 +152,7 @@ their gap column narrows what that test actually establishes.
 
 | ID | Capability / variants | Implementation and example | Local tests and remaining gaps |
 | --- | --- | --- | --- |
-| AL-01 | Full snapshot, empty snapshot, missing-from-poll clears | **M** A/S; [alarm exercise](SCENARIOS.md#alarms) | T5/T10 snapshots and removal; target's clear processing deferred |
+| AL-01 | Full snapshot, empty snapshot, missing-from-poll clears | **M** A/DemoDevice/S; [alarm exercise](SCENARIOS.md#observe-unsolicited-updates-when-connected) | T5/T10/T24/T25 snapshots and removal; target's clear processing deferred |
 | AL-02 | Scoped identity `id + location`, details | **M** D/S keyed pair | T10 root lifecycle; docs scoped interface example; repeated alarm IDs across every scope not exhaustively tested |
 | AL-03 | notification/minor/warning/major/critical | **M** D | T5 all enum values; invalid severity rejection follows Serde but dedicated negative fixture missing |
 | AL-04 | Service affecting true/false/default true | **M** D | T5 default true; false application/consumer effect needs explicit test |

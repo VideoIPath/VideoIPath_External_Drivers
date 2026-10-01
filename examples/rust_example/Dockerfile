@@ -9,8 +9,7 @@ COPY src/ ./src/
 # mandatory; a build must never silently resolve new dependencies.
 RUN cargo build --locked --release --bin rust-example
 # Prepare owned writable mount points in the builder; the runtime has no shell.
-RUN install -d -o 10001 -g 10001 -m 0700 /runtime/run/rust-example \
-       /runtime/var/lib/rust-example /runtime/var/lib/rust-example-simulator \
+RUN install -d -o 10001 -g 10001 -m 0700 /runtime/var/lib/rust-example \
        /runtime/var/lock/videoipath-drivers \
     && install -d -m 0755 /runtime/etc/rust-example/certificates
 

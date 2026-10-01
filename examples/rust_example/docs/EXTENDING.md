@@ -2,12 +2,12 @@
 
 Start with a device and firmware you can observe and control. Implement only its
 real capabilities, and make structure metadata match those capabilities. The
-existing simulator provides a learning and local-test boundary; it is not proof
+in-memory DemoDevice provides a learning boundary; it is not proof
 of a physical device's behavior or VideoIPath release acceptance.
 
 Start with the [README's gain-control lesson](../README.md#2-follow-one-control-from-definition-to-device).
 Use [PROTOCOL.md](PROTOCOL.md) for complete frames as you add each capability;
-you do not need to learn the simulator's internals first.
+you do not need a separate simulator or device transport to run the lessons.
 
 ## First increment: one real parameter
 
@@ -22,7 +22,7 @@ name or range.
 | 2. Describe the control | Adapt `Registry::new` and `Parameter` to the real type/range/unit/access; remove unrelated demonstration entries | `get_structure` describes the same values the runtime accepts; it contains no current reading |
 | 3. Read the vendor API | Implement `Device::read_values` in a new vendor adapter; convert device units to advertised units | `get_dynamic_values` returns the vendor observation, not `Parameter.default`; failed reads are errors |
 | 4. Set and confirm | Implement `Device::set_value`; convert units, apply, then query the actual value | A valid change succeeds, an invalid value never reaches the device, and normalization/partial apply is reported truthfully |
-| 5. Connect the adapter | Construct it in `main.rs` where `Client::connect` currently creates the simulator client; replace the simulator-specific health/event wiring | Device contact is established before the backend session; device loss changes readiness and keepalive behavior |
+| 5. Connect the adapter | Construct it in `main.rs` where `DemoDevice::new` currently initializes memory; replace the teaching clock and model-only health check | Device contact is established before the backend session; device loss changes readiness and keepalive behavior |
 | 6. Exercise the whole request | Adapt the frame tests to a fake vendor server, then use approved safe physical values | Response correlation, failed-ID map, readback and changed-only notification order survive the new transport |
 
 For a read-only sensor, stop before the setter: use `read_only`, disable GPIO
@@ -38,9 +38,9 @@ cargo test --locked --test capabilities partial_set_types_access_steps_changed_o
 cargo test --locked --test capabilities scope_identity_and_uncertain_write_readback
 ```
 
-Replace the simulator process/control-socket deployment settings with your vendor
-endpoint, authentication and transport settings. Update `.env.example`, Compose
-forwarding and configuration tests together; don't retain dummy simulator options.
+Add your vendor endpoint, authentication and transport settings only when needed.
+Update `.env.example`, Compose forwarding and configuration tests together.
+The default example has no device socket, control CLI or simulator service to retain.
 
 ## Add only the next needed API capability
 
@@ -66,7 +66,7 @@ for guessed fields.
 | `registry.rs` | Stable scoped definitions, access, GPIO, truthful ranges and topology | Device credentials and transient readings |
 | `protocol.rs` | SPEC decoding and conversion to supported domain fields | Vendor endpoints and vendor DTOs |
 | `application.rs` | Read/set/check semantics and per-item outcomes | Socket handling and concrete adapter imports |
-| `domain.rs` | Small capabilities and observed device semantics | Original SPEC frames as cached “state” |
+| `domain.rs`, `demo.rs` | Device operation contract and a small replaceable in-memory stand-in | Original SPEC frames as cached “state” |
 | New vendor adapter | Authentication, vendor DTOs, transport, normalization, physical readback | VideoIPath connection management and database access |
 | `main.rs` | Construct the concrete adapter and supervise its lifetime | Capability-specific behavior |
 
@@ -133,9 +133,10 @@ changes to the session, which delivers the response first; the adapter must not
 publish the same change independently before that response.
 
 Design event reconciliation from what the vendor actually supplies: transaction
-IDs, revisions, readback or other evidence. The simulator's private revisions and
-the sample's retire/resynchronize policy are **not SPEC fields or a universal device
-algorithm**. Do not fabricate equivalent vendor guarantees. Preserve meaningful
+IDs, revisions, readback or other evidence. The demo only changes a read-only signal
+independently, so writable-value echo reconciliation is deliberately not simulated.
+The optional device lab demonstrates a richer transport, not a universal device
+algorithm. Do not fabricate vendor guarantees. Preserve meaningful
 alarm transitions and action counts; suppress only attributable echoes, and recover
 authoritative state visibly on event loss. See [DESIGN.md](../DESIGN.md) for how the
 Rust example enforces these invariants if you reuse its session implementation.
@@ -170,7 +171,7 @@ these invariants rather than comments that restate a function's name.
 | Device transport | Interleaved reply/event with one reader | Timeout, cancellation during transmission, late reply and no action replay |
 | Session | Correlation and response-before-causal-event | Saturation, stalled device, target loss, old-generation suppression |
 | Media configuration | Main/spare, disable, supported SDP, drift and repair | Inconsistent SDP, failed repair/readback and bounded batch |
-| Native integration/load | Actual binary with test TLS backend and simulator; bounded full-capacity work | Duplicate process, restart, capacity overflow and secret-free trace |
+| Native integration/load | Actual example binary with test TLS backend; optional device-lab transport tests | Duplicate process, restart, capacity overflow and secret-free trace |
 | Target release | Accepted structure, catalog, runtime and consumer behavior | Rejected frames retained as sanitized release-scoped fixtures |
 
 Run the package checks from `examples/rust_example`:

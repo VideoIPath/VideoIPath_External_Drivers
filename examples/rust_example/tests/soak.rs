@@ -2,6 +2,7 @@
 //! Small TLS/process helpers intentionally mirror native_end_to_end.rs; neither
 //! fixture depends on the other's tests or introduces a shared test framework.
 #![cfg(target_os = "linux")]
+#![cfg(feature = "device-lab")]
 #![allow(clippy::result_large_err)]
 
 use std::{
@@ -20,7 +21,7 @@ use rcgen::{
     BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
     KeyUsagePurpose,
 };
-use rust_example::{registry::validate_structure, simulator};
+use rust_example::{lab::simulator, registry::validate_structure};
 use rustls::{ServerConfig, pki_types::PrivatePkcs8KeyDer};
 use serde_json::{Value, json};
 use tokio::{
@@ -37,7 +38,7 @@ use tokio_tungstenite::{
     },
 };
 
-const BIN: &str = env!("CARGO_BIN_EXE_rust-example");
+const BIN: &str = env!("CARGO_BIN_EXE_device-lab");
 const TOKEN: &str = "soak-only-synthetic-$-bearer-never-log";
 const SECRET: &str = "soak-only-synthetic-payload-never-log";
 const NODE: &str = "40965121-57a7-41b8-9e03-9f3f2900c006";

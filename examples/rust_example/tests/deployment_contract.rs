@@ -88,6 +88,9 @@ fn delivery_keeps_build_context_and_identity_boundaries() {
     let dockerfile = include_str!("../Dockerfile");
     assert!(!COMPOSE.contains("    build:"));
     assert!(!COMPOSE.contains("ports:"));
+    assert!(!COMPOSE.contains("depends_on:"));
+    assert!(!COMPOSE.contains("simulator"));
+    assert!(!COMPOSE.contains("sockets:"));
     assert!(dockerfile.contains("cargo build --locked --release --bin rust-example"));
     assert!(!dockerfile.contains("COPY . ."));
     assert_eq!(
@@ -238,22 +241,36 @@ fn compose_preserves_literal_credentials_without_printing_them() {
             == Some(literal.replace('$', "$$").as_str()),
         "literal credential interpolation changed"
     );
+    assert!(services.as_object().is_some_and(|items| items.len() == 1));
+    let driver = &services["driver"];
+    assert!(driver["read_only"] == true);
+    assert!(driver["init"] == true);
+    assert!(driver["user"] == "10001:10001");
+    assert!(driver["cap_drop"] == serde_json::json!(["ALL"]));
+    assert!(driver["security_opt"] == serde_json::json!(["no-new-privileges:true"]));
+    assert!(driver.get("ports").is_none());
+    assert!(driver.get("build").is_none());
+    assert!(driver.get("depends_on").is_none());
+    assert!(driver["restart"] == "on-failure:5");
+    assert!(driver["command"] == serde_json::json!(["driver"]));
     assert!(
-        services["simulator"]["environment"]
-            .get("VIDEOIPATH_TOKEN")
-            .is_none(),
-        "simulator must never receive backend credentials"
+        parsed["volumes"]
+            .as_object()
+            .is_some_and(|items| items.len() == 1)
     );
-    assert!(
-        services["driver"]["environment"]["DRIVER_STATE_DIRECTORY"]
-            != services["simulator"]["environment"]["DRIVER_STATE_DIRECTORY"],
-        "health states must be separate"
-    );
-    for name in ["driver", "simulator"] {
-        assert!(services[name]["read_only"] == true);
-        assert!(services[name]["user"] == "10001:10001");
-        assert!(services[name].get("ports").is_none());
-        assert!(services[name].get("build").is_none());
+    let forwarded: BTreeSet<_> = driver["environment"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert!(forwarded == config::OPTIONS.iter().map(|(key, _)| *key).collect());
+    for obsolete in [
+        "DRIVER_SOCKET",
+        "DRIVER_CONTROL_SOCKET",
+        "DRIVER_OPERATION_TIMEOUT_MS",
+    ] {
+        assert!(!forwarded.contains(obsolete));
     }
     // A malformed operator file can make Compose echo source text in an error.
     // The wrapper must suppress those raw diagnostics, even on its failure path.

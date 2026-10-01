@@ -8,10 +8,13 @@ Use this runnable example to learn how to expose **your device's controls, statu
 
 ```text
 VideoIPath  <-- SPEC-23 JSON over WebSocket -->  Your driver  <-- vendor API -->  Your device
-                                              ^ replace the example's simulator adapter
+                                              ^ replace DemoDevice with your vendor adapter
 ```
 
-The included Rust driver uses a separate simulated device so you can study reads, writes, local changes and failures without equipment. The simulator's Unix-socket API is **not** part of the VideoIPath API; replace it with your device's HTTP, TCP, serial or SDK interface. The example is a source reference, not a framework you must adopt wholesale.
+The included driver uses a small **in-memory `DemoDevice`** so you can study the
+API without hardware, a second service or another protocol. Replace its methods
+with your device's HTTP, TCP, serial or SDK operations. The example is a source
+reference, not a framework you must adopt wholesale.
 
 > [!IMPORTANT]
 > Source, tests and Docker Compose are implemented and locally tested. This example has **not been commissioned against a VideoIPath release or physical device**. Its local models are not an official schema; validate your driver against your intended release and firmware. Exact evidence and limitations are in [VALIDATION.md](VALIDATION.md) and the [coverage ledger](docs/COVERAGE.md).
@@ -34,7 +37,7 @@ You do not need media routing to expose a temperature or gain control. Keep unsu
 
 ## 2. Follow one control from definition to device
 
-The example's device-level `audio_gain` is a useful first lesson. Its range of −20 to +20 dB in 0.5 dB steps is **simulator policy**, not an API requirement. For your device, use its real range and conversion rules.
+The example's device-level `audio_gain` is a useful first lesson. Its range of −20 to +20 dB in 0.5 dB steps is **demonstration policy**, not an API requirement. For your device, use its real range and conversion rules.
 
 **Describe it:** `get_structure.data.dynamic_values.audio_gain` contains type, range and access metadata. `Registry::new` supplies that definition; `Parameter::validate` enforces it. The default initializes simulated state—it does not instruct a real device to reset on connection.
 
@@ -70,7 +73,7 @@ Trace the lesson in this order:
 registry.rs: definition + validation
   → application.rs: dispatch (get_dynamic_values) / set_values
   → domain.rs: Device::read_values / Device::set_value
-  → device.rs: simulator adapter (replace with your vendor API)
+  → demo.rs: in-memory device operations (replace with your vendor API)
   → application.rs: readback + result
   → session.rs: response, then deferred change
 ```
@@ -83,14 +86,23 @@ From this directory, with Rustup installed (the toolchain is pinned):
 
 ```sh
 cargo build --locked
+cargo run --locked --example api_walkthrough
 cargo test --locked --test documented_frames
+cargo test --locked --test demo_device
 cargo test --locked --test capabilities
 cargo test --locked --all-targets
 ```
 
-The tests send protocol requests to handlers and use fake-backend/device boundaries to demonstrate the expected outcomes. `documented_frames` checks the walkthrough frames; `capabilities` includes malformed requests, partial writes, authoritative alarms and configuration drift. None of these commands needs a VideoIPath token or physical device.
+`api_walkthrough` runs the requests against the same handlers and prints responses
+and events: structure, parameters, partial failures, alarms, sender/receiver
+configuration, SDP, drift/repair and disable. It needs **no credentials or server**.
+`documented_frames` checks this README's frames; `demo_device` exercises the model;
+`capabilities` includes malformed requests and failure cases.
 
-For interactive changes, use the [native simulator controls](docs/SIMULATOR.md#native-controls) and [scenarios](docs/SCENARIOS.md). `simctl` changes the simulated device; it **does not send SPEC frames**. The [native end-to-end test](tests/native_end_to_end.rs) demonstrates the actual driver process with a local TLS test backend. The simulator models control state, not media transmission.
+When connected to VideoIPath, the example also alternates a read-only signal and
+raises/clears a demo warning every ten seconds to show unsolicited updates. This
+is a teaching clock, not a real sensor or production polling strategy. State
+survives WebSocket reconnects but resets on process restart. See the [scenarios](docs/SCENARIOS.md).
 
 ## 4. Adapt the example to your device
 
@@ -100,7 +112,7 @@ Start with the [worked adaptation guide](docs/EXTENDING.md), not a copy of every
 | --- | --- | --- |
 | Definitions and runtime validation agree | Parameter IDs, units, ranges and vendor conversions | Demonstration values, hidden namespaces and unused scopes |
 | Stable identity and truthful structure | Product identity, modules, ports and interface references | Media endpoints on a monitoring-only device |
-| Read actual state; confirm writes | Simulator adapter with one vendor API adapter | Simulator process, control socket, private revisions and fault controls |
+| Read actual state; confirm writes | DemoDevice's memory accesses with one vendor API adapter | Demo initialization and teaching clock |
 | Respect operation-specific response shapes | Supported media fields and normalization | SDP/FEC/SRT, SIPS and resource links the device cannot honor |
 | Bound work; isolate reconnects and cancellation | Timeouts, pacing and event reconciliation for the vendor API | This example's exact module/trait layout as a supposed API requirement |
 
@@ -112,7 +124,10 @@ The driver is the client of `wss://<virtual-ip>/x-driver/v1?node_id=<stable-uuid
 
 Preserve each request ID and successful response type. Unsupported/failed requests receive `error`; incoming `error` messages get no reply. Echo keepalives only while device contact is healthy, and keep slow device I/O from blocking them. The [transport walkthrough](docs/PROTOCOL.md#transport-and-envelope) and [session code](src/session.rs) show these rules.
 
-For containers, follow [OPERATIONS.md](OPERATIONS.md) and the complete [.env.example](.env.example). The supplied Compose deployment runs the driver and simulator separately; replace the simulator service and private socket settings when integrating your device. No prebuilt registry image is published. VideoIPath does not deploy this process, and an external driver is not an *external driverhost*.
+For containers, follow [OPERATIONS.md](OPERATIONS.md) and [.env.example](.env.example).
+Compose runs **one driver service**. Add vendor connection settings only when you
+replace DemoDevice. No prebuilt registry image is published. VideoIPath does not
+deploy this process, and an external driver is not an *external driverhost*.
 
 Commission in order: authenticated connection → accepted structure → discovery/Inventory **Device UP** → full parameter catalog → read → controlled write with device readback and restoration → independent event/Panel update → loss/reconnect recovery. Record the exact VideoIPath release/backend SHA and device firmware. A populated picker, successful local test or healthy container alone does not establish working device control.
 
@@ -126,9 +141,9 @@ Commission in order: authenticated connection → accepted structure → discove
 | Why does this Rust implementation serialize/cancel work this way? | [Design notes](DESIGN.md) |
 | How do I deploy, rotate credentials, upgrade or roll back? | [Operator runbook](OPERATIONS.md) |
 | Which variants are implemented and what still needs evidence? | [Coverage](docs/COVERAGE.md), [wire questions](docs/WIRE_EVIDENCE.md), [validation](VALIDATION.md) |
-| How do I exercise longer-running recovery and resource bounds? | [Opt-in soak](docs/SOAK.md) |
+| Where is the optional transport/fault test equipment? | [Device lab](tools/device_lab/)—not compiled into the default driver |
 
-The SDP examples cover a bounded subset, not full ST 2110; populated IP overrides and sender-to-sender partner selection still require authoritative wire evidence. Do not infer physical SRT, FEC or redundancy capability from simulated configuration storage. Keep connection orchestration and VideoIPath database access outside your driver.
+The SDP examples cover a bounded subset, not full ST 2110; populated IP overrides and sender-to-sender partner selection still require authoritative wire evidence. Do not infer physical SRT, FEC or redundancy capability from in-memory configuration storage. Keep connection orchestration and VideoIPath database access outside your driver.
 
 See the [contribution guidelines](../../CONTRIBUTING.md), [code of conduct](../../CODE_OF_CONDUCT.md) and [distribution notes](THIRD_PARTY.md) before contributing or packaging. This example is provided “as is,” without warranty; see the [license](../../LICENSE) and repository disclaimer.
 

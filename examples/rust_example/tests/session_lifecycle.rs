@@ -48,6 +48,65 @@ fn echo_handler() -> Handler {
     })
 }
 
+#[tokio::test(start_paused = true)]
+async fn independent_demo_tick_interleaves_with_write_without_retiring_session() {
+    let entered = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let (begin, finish) = (entered.clone(), release.clone());
+    let causal = json!({"message_id":null,"message_type":"async_values_changed","data":{"location":null,"values":{"audio_gain":2.5}}});
+    let expected_causal = causal.clone();
+    let handler: Handler = Arc::new(move |request| {
+        let (begin, finish, causal) = (begin.clone(), finish.clone(), causal.clone());
+        Box::pin(async move {
+            begin.notify_one();
+            finish.notified().await;
+            Completion {
+                response: json!({"message_id":request["message_id"],"message_type":"set_dynamic_values","data":{}}),
+                changes: vec![causal],
+            }
+        })
+    });
+    let (client, server) = tokio::io::duplex(65_536);
+    let client = WebSocketStream::from_raw_socket(client, Role::Client, None).await;
+    let peer = WebSocketStream::from_raw_socket(server, Role::Server, None).await;
+    let (events, incoming) = mpsc::channel(4);
+    let stop = CancellationToken::new();
+    let task = tokio::spawn(session::run_independent(
+        client,
+        handler,
+        incoming,
+        Arc::new(|| true),
+        limits(),
+        stop.clone(),
+    ));
+    let mut generation = Generation {
+        peer,
+        events,
+        stop,
+        task,
+    };
+    generation.send(json!({"message_id":1,"message_type":"set_dynamic_values","data":{"values":{"audio_gain":2.5}}})).await;
+    bounded(entered.notified()).await; // The mutation owns its lane until response delivery.
+    let demo =
+        rust_example::demo::DemoDevice::new(Arc::new(rust_example::registry::Registry::new()));
+    for event in demo.tick().unwrap() {
+        let frame = rust_example::protocol::event_frame(&event);
+        generation.events.send(frame.clone()).await.unwrap();
+        assert_eq!(generation.response().await, frame);
+    }
+    let keepalive = json!({"message_id":2,"message_type":"keepalive","data":null});
+    generation.send(keepalive.clone()).await;
+    assert_eq!(generation.response().await, keepalive);
+    release.notify_one();
+    assert_eq!(
+        generation.response().await,
+        json!({"message_id":1,"message_type":"set_dynamic_values","data":{}})
+    );
+    assert_eq!(generation.response().await, expected_causal);
+    generation.stop.cancel();
+    bounded(generation.task).await.unwrap();
+}
+
 struct Generation {
     peer: Socket,
     events: mpsc::Sender<Value>,

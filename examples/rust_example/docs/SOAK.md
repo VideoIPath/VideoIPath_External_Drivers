@@ -1,5 +1,10 @@
 # Local native soak qualification
 
+**Optional device-lab workload:** since 0.3, use the `device-lab` feature and
+binary. This tests the retained two-process transport equipment, not the default
+in-memory driver. Historical measurements below describe the 0.2 implementation;
+they are not performance evidence for the new lean executable.
+
 This Linux-only harness runs the **actual Cargo-built driver child**, a **separate
 simulator child**, and a loopback TLS/WebSocket fake backend. It exercises the
 composition root and Unix socket device boundary. It does not contact VideoIPath
@@ -9,8 +14,8 @@ Measured path (all on the same host):
 
 ```text
 tests/soak.rs fake backend
-  -> loopback TLS/WebSocket -> target/debug/rust-example driver
-  -> private Unix socket -> target/debug/rust-example simulator
+   -> loopback TLS/WebSocket -> target/debug/device-lab driver
+   -> private Unix socket -> target/debug/device-lab simulator
 ```
 
 Independent mutations originate from the test's simulator-control client on a
@@ -21,7 +26,7 @@ second private Unix socket; they do not enter through the fake backend.
 From `examples/rust_example`, with the pinned Rust toolchain on `PATH`:
 
 ```sh
-cargo test --locked --test soak soak_two_cycle_regression -- --exact --nocapture
+cargo test --locked --features device-lab --test soak soak_two_cycle_regression -- --exact --nocapture
 SOAK_SECONDS=120 sh scripts/soak.sh
 ```
 

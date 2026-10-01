@@ -2,6 +2,7 @@
 //! and an independently owned simulator reached through its Unix socket API.
 //! Passing this fixture does not establish acceptance by a VideoIPath release.
 #![cfg(target_os = "linux")]
+#![cfg(feature = "device-lab")]
 // Tungstenite fixes the handshake callback's error type; changing it is not an option here.
 #![allow(clippy::result_large_err)]
 
@@ -20,7 +21,7 @@ use rcgen::{
     BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
     KeyUsagePurpose,
 };
-use rust_example::{registry::validate_structure, simulator};
+use rust_example::{lab::simulator, registry::validate_structure};
 use rustls::{ServerConfig, pki_types::PrivatePkcs8KeyDer};
 use serde_json::{Value, json};
 use tokio::{
@@ -38,7 +39,7 @@ use tokio_tungstenite::{
 };
 use tokio_util::sync::CancellationToken;
 
-const BIN: &str = env!("CARGO_BIN_EXE_rust-example");
+const BIN: &str = env!("CARGO_BIN_EXE_device-lab");
 const TOKEN: &str = "native-fixture-only-$-not-a-real-bearer";
 const PAYLOAD_SECRET: &str = "synthetic-payload-secret-never-log";
 const NODE: &str = "afe3cf0d-d906-4a89-a495-5f6a989a16c1";

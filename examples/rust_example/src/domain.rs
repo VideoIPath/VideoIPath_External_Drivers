@@ -1,5 +1,5 @@
 //! Vendor-operation seam used by the handlers in `application.rs`.
-//! Start at [`Device`] when replacing the simulator with a physical device API.
+//! Start at [`Device`] when replacing DemoDevice with a physical device API.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, net::IpAddr};
@@ -163,7 +163,7 @@ pub struct Fec {
 }
 
 /// Deliberately redacts key material from Debug; serialization is for the private
-/// simulator transport only and must never be used as a diagnostic dump.
+/// optional device-lab transport only and must never be used as a diagnostic dump.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encryption {
     pub algorithm: String,

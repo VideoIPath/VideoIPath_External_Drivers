@@ -10,15 +10,12 @@ pub const OPTIONS: &[(&str, &str)] = &[
     ("VIDEOIPATH_TOKEN", ""),
     ("VIDEOIPATH_NODE_ID", ""),
     ("VIDEOIPATH_CA_BUNDLE", ""),
-    ("DRIVER_SOCKET", "/run/rust-example/device.sock"),
-    ("DRIVER_CONTROL_SOCKET", "/run/rust-example/control.sock"),
     ("DRIVER_STATE_DIRECTORY", "/var/lib/rust-example"),
     ("DRIVER_LOCK_DIRECTORY", "/var/lock/videoipath-drivers"),
     ("DRIVER_LOG_LEVEL", "info"),
     ("DRIVER_REQUEST_LIMIT", "16"),
     ("DRIVER_OUTBOUND_LIMIT", "128"),
     ("DRIVER_MAX_FRAME_BYTES", "1048576"),
-    ("DRIVER_OPERATION_TIMEOUT_MS", "3000"),
     ("DRIVER_REQUEST_TIMEOUT_MS", "5000"),
     ("DRIVER_IPT_TIMEOUT_MS", "20000"),
     ("DRIVER_RECONNECT_MIN_MS", "500"),
@@ -37,15 +34,12 @@ pub struct Config {
     pub token: String,
     pub node_id: Option<Uuid>,
     pub ca_bundle: Option<PathBuf>,
-    pub socket: PathBuf,
-    pub control_socket: PathBuf,
     pub state_directory: PathBuf,
     pub lock_directory: PathBuf,
     pub log_level: String,
     pub request_limit: usize,
     pub outbound_limit: usize,
     pub max_frame_bytes: usize,
-    pub operation_timeout: Duration,
     pub request_timeout: Duration,
     pub ipt_timeout: Duration,
     pub reconnect_min: Duration,
@@ -153,31 +147,23 @@ impl Config {
             token,
             node_id,
             ca_bundle,
-            socket: path("DRIVER_SOCKET")?,
-            control_socket: path("DRIVER_CONTROL_SOCKET")?,
             state_directory: path("DRIVER_STATE_DIRECTORY")?,
             lock_directory: path("DRIVER_LOCK_DIRECTORY")?,
             log_level,
             request_limit: number("DRIVER_REQUEST_LIMIT", 1, 256)? as usize,
             outbound_limit: number("DRIVER_OUTBOUND_LIMIT", 2, 4096)? as usize,
             max_frame_bytes: number("DRIVER_MAX_FRAME_BYTES", 1024, 4 * 1024 * 1024)? as usize,
-            operation_timeout: duration("DRIVER_OPERATION_TIMEOUT_MS", 10, 4000)?,
             request_timeout: duration("DRIVER_REQUEST_TIMEOUT_MS", 100, 7000)?,
             ipt_timeout: duration("DRIVER_IPT_TIMEOUT_MS", 100, 25000)?,
             reconnect_min: duration("DRIVER_RECONNECT_MIN_MS", 100, 30000)?,
             reconnect_max: duration("DRIVER_RECONNECT_MAX_MS", 100, 120000)?,
             shutdown_timeout: duration("DRIVER_SHUTDOWN_TIMEOUT_MS", 100, 10000)?,
         };
-        if config.operation_timeout >= config.request_timeout
-            || config.request_timeout > config.ipt_timeout
-        {
-            return Err(ConfigError("operation < request <= IPT deadline required"));
+        if config.request_timeout > config.ipt_timeout {
+            return Err(ConfigError("request <= IPT deadline required"));
         }
         if config.reconnect_min > config.reconnect_max {
             return Err(ConfigError("reconnect minimum exceeds maximum"));
-        }
-        if config.socket == config.control_socket {
-            return Err(ConfigError("device/control sockets must differ"));
         }
         Ok(config)
     }
@@ -213,8 +199,8 @@ mod tests {
             ("VIDEOIPATH_TOKEN", "SECRET\r\n"),
             ("DRIVER_REQUEST_LIMIT", "-1"),
             ("DRIVER_LOG_LEVEL", "weird"),
-            ("DRIVER_SOCKET", "relative"),
-            ("DRIVER_OPERATION_TIMEOUT_MS", "5000"),
+            ("DRIVER_STATE_DIRECTORY", "relative"),
+            ("DRIVER_REQUEST_TIMEOUT_MS", "8000"),
         ] {
             let mut e = env();
             e.insert(k.into(), v.into());
@@ -223,7 +209,7 @@ mod tests {
         }
     }
     #[test]
-    fn simulator_needs_no_vip_credentials() {
+    fn non_driver_configuration_needs_no_vip_credentials() {
         assert!(Config::parse(&BTreeMap::new(), false).is_ok());
     }
 }

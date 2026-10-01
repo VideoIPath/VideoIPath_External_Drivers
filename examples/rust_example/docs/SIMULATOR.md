@@ -1,4 +1,8 @@
-# Independent simulated target
+# Optional laboratory: independent simulated target
+
+This is the [device lab](../tools/device_lab/), **not the default driver**.
+The API lessons now use `DemoDevice` in one process. Read this only when testing
+device transports or fault handling; no lab code is included in the default image.
 
 The simulator is a separate process with its own volatile state. Driver restarts
 preserve that state; simulator restarts reset it. It models control state, not
@@ -76,11 +80,12 @@ chmod 700 "$HOME/videoipath-files/rust-example-simulator"
 export DRIVER_SOCKET="$HOME/videoipath-files/rust-example-simulator/device.sock"
 export DRIVER_CONTROL_SOCKET="$HOME/videoipath-files/rust-example-simulator/control.sock"
 export DRIVER_STATE_DIRECTORY="$HOME/videoipath-files/rust-example-simulator/state"
-cargo run -- simulator
+cargo run --locked --features device-lab --bin device-lab -- simulator
 ```
 
 In another terminal, set the same `DRIVER_CONTROL_SOCKET`, then run
-`cargo run -- simctl status` or `cargo run -- simctl set 'null' level '60'`.
+`cargo run --locked --features device-lab --bin device-lab -- simctl status` or
+`cargo run --locked --features device-lab --bin device-lab -- simctl set 'null' level '60'`.
 Use Ctrl-C for graceful cleanup. The examples below show arguments after
 `simctl`. JSON arguments must be shell-quoted. Root location is JSON `null`.
 
@@ -183,6 +188,6 @@ escaped alarm snapshot capacity, truthful codec/payload SDP and unsupported
 transport combinations, and stale relays rechecked after a confirmed write.
 These tests do not contact VideoIPath.
 
-`cargo test --locked --test sdp_redundancy` exercises actual paired sender-to-receiver
+`cargo test --locked --features device-lab --test sdp_redundancy` exercises actual paired sender-to-receiver
 round trips, section reordering, coherent snapshots and negative cases. See the
 [main/spare walkthrough](REDUNDANT_SDP.md) for the narrow subset and group-ID policy.

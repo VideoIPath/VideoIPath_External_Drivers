@@ -28,8 +28,8 @@ rejects them because its domain has one shared format description.
 
 ## 1. Configure the sender
 
-Send through a test backend or future VideoIPath integration—not `simctl`, whose
-control API is different. The two interface IDs already exist in the structure.
+Send through the handlers in the offline walkthrough, a test backend or a future
+VideoIPath integration. The two interface IDs already exist in the structure.
 
 ```json
 {"message_id":50,"message_type":"set_ipt_configurations","data":{"module_id":"module-1","sender_configs":[{"id":"tx-1","transceiver_type":"sender","enabled_config":{"main_ip_destination":{"address":"239.1.1.1","udp_port":5004,"network_interface":{"module_id":"module-1","port_id":"net-main"}},"spare_ip_destination":{"address":"239.2.1.1","udp_port":5006,"network_interface":{"module_id":"module-1","port_id":"net-spare"}},"format_info":{"video_codec":{"codec":"H.264","entropy_encoding":"CABAC","gop_struct":"Automatic","gop_size":1},"attributes":{"rtp_payload_type":111}}}}]}}
@@ -103,7 +103,9 @@ Run the actual simulator round trips, mutation failures, normalization, IPv4/IPv
 drift/repair and concurrent coherent-snapshot checks:
 
 ```sh
-cargo test --locked --test sdp_redundancy
+cargo test --locked --test demo_device
+# Optional independent-transport, IPv4/IPv6 and fault cases:
+cargo test --locked --features device-lab --test sdp_redundancy
 ```
 
 This is local document-derived behavior. Full ST 2110 format/fmtp/PTP modeling,

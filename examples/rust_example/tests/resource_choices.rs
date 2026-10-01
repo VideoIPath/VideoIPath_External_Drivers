@@ -1,12 +1,13 @@
 //! Resource links describe allowed local choices, not VideoIPath connections.
 //! Observe the selected partner through the independently owned target state.
+#![cfg(feature = "device-lab")]
+
 use rust_example::{
     application,
-    device::Client,
     domain::{Device, Direction, PortKey},
+    lab::{client::Client, simulator},
     protocol::Request,
     registry::{Registry, validate_structure},
-    simulator,
 };
 use serde_json::{Value, json};
 use std::{os::unix::fs::PermissionsExt, time::Duration};

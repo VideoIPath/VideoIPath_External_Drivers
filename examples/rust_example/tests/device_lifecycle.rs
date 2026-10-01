@@ -1,6 +1,11 @@
 //! Real Unix streams exercise ownership and cancellation. These are local target
 //! transport tests, not evidence of VideoIPath or physical-media compatibility.
-use rust_example::{device::Client, domain::*, simulator};
+#![cfg(feature = "device-lab")]
+
+use rust_example::{
+    domain::*,
+    lab::{client::Client, simulator},
+};
 use serde_json::{Value, json};
 use std::os::unix::fs::PermissionsExt;
 use std::{path::PathBuf, time::Duration};
@@ -885,7 +890,8 @@ async fn delayed_relay_checks_per_parameter_write_revision_at_actual_dispatch() 
         },
     ] {
         assert!(
-            client.event_is_current(&rust_example::device::ObservedEvent { revision: 0, event })
+            client
+                .event_is_current(&rust_example::lab::client::ObservedEvent { revision: 0, event })
         );
     }
     client.read_values(Location::root()).await.unwrap();

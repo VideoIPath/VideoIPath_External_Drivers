@@ -1,12 +1,13 @@
 //! Local control-plane evidence through the real Unix simulator adapter. DUP
 //! grouping does not establish packet duplication, ST 2022-7 or live acceptance.
+#![cfg(feature = "device-lab")]
+
 use rust_example::{
     application::handle,
-    device::Client,
     domain::*,
+    lab::{client::Client, simulator},
     protocol::{self, Request},
     registry::Registry,
-    simulator,
 };
 use serde_json::{Value, json};
 use std::{os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};

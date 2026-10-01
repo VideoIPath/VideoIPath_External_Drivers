@@ -1,9 +1,8 @@
 //! Repeatable local device-API measurement, not a claim about VideoIPath latency.
-//! Run: cargo run --locked --release --example latency
+//! Run: cargo run --locked --release --features device-lab --example latency
 use rust_example::{
-    device::Client,
     domain::{Device, Location},
-    simulator,
+    lab::{client::Client, simulator},
 };
 use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};

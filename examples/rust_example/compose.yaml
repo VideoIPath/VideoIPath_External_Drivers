@@ -28,33 +28,15 @@ x-runtime: &runtime
     start_period: "${DRIVER_HEALTHCHECK_START_PERIOD:-15s}"
 
 services:
-  simulator:
-    <<: *runtime
-    command: [simulator]
-    # Its only API is a Unix socket; the simulator needs no network or VIP credentials.
-    network_mode: none
-    environment:
-      DRIVER_SOCKET: "${DRIVER_SOCKET:-/run/rust-example/device.sock}"
-      DRIVER_CONTROL_SOCKET: "${DRIVER_CONTROL_SOCKET:-/run/rust-example/control.sock}"
-      DRIVER_STATE_DIRECTORY: /var/lib/rust-example-simulator
-    volumes:
-      - sockets:/run/rust-example
-      - simulator-health:/var/lib/rust-example-simulator
-
   driver:
     <<: *runtime
     command: [driver]
-    depends_on:
-      simulator:
-        condition: service_healthy
     environment:
       # Explicit forwarding prevents unrelated host environment from entering the process.
       VIDEOIPATH_URL: "${VIDEOIPATH_URL:?Set VIDEOIPATH_URL}"
       VIDEOIPATH_TOKEN: "${VIDEOIPATH_TOKEN:?Set VIDEOIPATH_TOKEN}"
       VIDEOIPATH_NODE_ID: "${VIDEOIPATH_NODE_ID:?Set VIDEOIPATH_NODE_ID}"
       VIDEOIPATH_CA_BUNDLE: "${VIDEOIPATH_CA_BUNDLE:-}"
-      DRIVER_SOCKET: "${DRIVER_SOCKET:-/run/rust-example/device.sock}"
-      DRIVER_CONTROL_SOCKET: "${DRIVER_CONTROL_SOCKET:-/run/rust-example/control.sock}"
       DRIVER_STATE_DIRECTORY: "${DRIVER_STATE_DIRECTORY:-/var/lib/rust-example}"
       DRIVER_LOCK_DIRECTORY: "${DRIVER_LOCK_DIRECTORY:-/var/lock/videoipath-drivers}"
       DRIVER_LOG_LEVEL: "${DRIVER_LOG_LEVEL:-info}"
@@ -62,14 +44,12 @@ services:
       DRIVER_REQUEST_LIMIT: "${DRIVER_REQUEST_LIMIT:-16}"
       DRIVER_OUTBOUND_LIMIT: "${DRIVER_OUTBOUND_LIMIT:-128}"
       DRIVER_MAX_FRAME_BYTES: "${DRIVER_MAX_FRAME_BYTES:-1048576}"
-      DRIVER_OPERATION_TIMEOUT_MS: "${DRIVER_OPERATION_TIMEOUT_MS:-3000}"
       DRIVER_REQUEST_TIMEOUT_MS: "${DRIVER_REQUEST_TIMEOUT_MS:-5000}"
       DRIVER_IPT_TIMEOUT_MS: "${DRIVER_IPT_TIMEOUT_MS:-20000}"
       DRIVER_RECONNECT_MIN_MS: "${DRIVER_RECONNECT_MIN_MS:-500}"
       DRIVER_RECONNECT_MAX_MS: "${DRIVER_RECONNECT_MAX_MS:-30000}"
       DRIVER_SHUTDOWN_TIMEOUT_MS: "${DRIVER_SHUTDOWN_TIMEOUT_MS:-5000}"
     volumes:
-      - sockets:/run/rust-example
       - type: volume
         source: driver-state
         target: "${DRIVER_STATE_DIRECTORY:-/var/lib/rust-example}"
@@ -86,8 +66,6 @@ services:
         bind:
           create_host_path: false
 
-# Separate health volumes prevent one process from making the other appear alive.
+# Persist local driver diagnostics across container recreation.
 volumes:
-  sockets:
   driver-state:
-  simulator-health:

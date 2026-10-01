@@ -263,7 +263,7 @@ async fn set_ipt<D: Device>(
     }
     let mut sender_errors = Vec::new();
     let mut receiver_errors = Vec::new();
-    // Cross-module ordering belongs to the backend. Within a batch the simulator
+    // Cross-module ordering belongs to the backend. Within a batch this example
     // applies the selected order. `all` accepts both directions in one request;
     // it does not promise atomic or parallel physical-device application.
     let mut groups = [

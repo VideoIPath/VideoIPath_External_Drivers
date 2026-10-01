@@ -95,11 +95,67 @@ where
 pub async fn run_guarded<S>(
     socket: WebSocketStream<S>,
     handler: Handler,
-    mut events: mpsc::Receiver<Value>,
+    events: mpsc::Receiver<Value>,
     healthy: Arc<dyn Fn() -> bool + Send + Sync>,
     limits: Limits,
     shutdown: CancellationToken,
     current: Arc<dyn Fn(&Value) -> bool + Send + Sync>,
+) -> &'static str
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    run_events(
+        socket,
+        handler,
+        events,
+        healthy,
+        limits,
+        shutdown,
+        EventSafety::Checked(current),
+    )
+    .await
+}
+
+/// Use only when external events cannot change any state a request can WRITE.
+/// Such events may interleave with responses; they are not request-caused echoes.
+/// The teaching input meets this contract (read-only signal + alarm). A vendor
+/// adapter with writable front-panel controls must instead reconcile its events.
+pub async fn run_independent<S>(
+    socket: WebSocketStream<S>,
+    handler: Handler,
+    events: mpsc::Receiver<Value>,
+    healthy: Arc<dyn Fn() -> bool + Send + Sync>,
+    limits: Limits,
+    shutdown: CancellationToken,
+) -> &'static str
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    run_events(
+        socket,
+        handler,
+        events,
+        healthy,
+        limits,
+        shutdown,
+        EventSafety::Independent,
+    )
+    .await
+}
+
+enum EventSafety {
+    Checked(Arc<dyn Fn(&Value) -> bool + Send + Sync>),
+    Independent,
+}
+
+async fn run_events<S>(
+    socket: WebSocketStream<S>,
+    handler: Handler,
+    mut events: mpsc::Receiver<Value>,
+    healthy: Arc<dyn Fn() -> bool + Send + Sync>,
+    limits: Limits,
+    shutdown: CancellationToken,
+    safety: EventSafety,
 ) -> &'static str
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -226,12 +282,18 @@ where
             }
             event=events.recv()=> {
                 let Some(mut event)=event else {break "event stream unavailable";};
-                if !current(&event) {break "stale target event requires resynchronization";}
+                if let EventSafety::Checked(current) = &safety
+                    && !current(&event) {break "stale target event requires resynchronization";}
                 if let Some(object)=event.as_object_mut() {object.remove("_driver_revision");}
                 // Without a target transaction/revision token we cannot attribute an
                 // independent event to an in-flight write safely. Fail closed and
                 // resynchronize rather than publish a possibly stale causal value.
-                let Ok(_event_guard)=device_lane.try_read() else {break "concurrent target change requires resynchronization";};
+                // An explicitly independent source is different: its read-only
+                // state cannot overlap a backend write, so interleaving is safe.
+                let event_guard = device_lane.try_read();
+                if event_guard.is_err() && !matches!(safety, EventSafety::Independent) {
+                    break "concurrent target change requires resynchronization";
+                }
                 let (delivered,_)=oneshot::channel();
                 if out.try_send(Write{frame:Message::Text(event.to_string().into()),delivered}).is_err() {
                     // Never silently discard an alarm edge. Reconnect and re-read authoritative state.

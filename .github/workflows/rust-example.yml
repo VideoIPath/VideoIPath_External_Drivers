@@ -25,13 +25,18 @@ jobs:
           toolchain: 1.98.1
           components: rustfmt, clippy
       - run: cargo fmt --all --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked --all-targets
+      - run: cargo test --locked
+      - run: cargo test --locked --features device-lab --all-targets
+      - run: cargo clippy --locked --all-features --all-targets -- -D warnings
       - name: Explicit local soak (manual workflow only)
         if: github.event_name == 'workflow_dispatch'
         timeout-minutes: 5
         run: SOAK_SECONDS=120 sh scripts/soak.sh
-      - run: cargo doc --locked --no-deps
+      - run: cargo doc --locked --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: Validate Compose and literal environment quoting
+        run: cargo test --locked --test deployment_contract compose_preserves_literal_credentials_without_printing_them -- --ignored --exact
       - name: Scan the locked Rust graph
         run: |
           # A stripped native image cannot expose its Cargo graph to an image scanner.

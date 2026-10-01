@@ -15,5 +15,5 @@ if [ "$SOAK_SECONDS" -lt 2 ] || [ "$SOAK_SECONDS" -gt 86400 ]; then
     exit 1
 fi
 export SOAK_SECONDS
-# No hidden build-profile override: this qualifies the Cargo debug executable.
-exec cargo test --locked --test soak elapsed_soak -- --ignored --exact --nocapture
+# Native device-lab tooling is opt-in and is not part of the default driver image.
+exec cargo test --locked --features device-lab --test soak elapsed_soak -- --ignored --exact --nocapture

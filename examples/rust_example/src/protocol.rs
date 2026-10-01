@@ -616,7 +616,7 @@ pub fn validate_sdp(
 }
 
 /// RFC 5888 mids identify sections independently of their occurrence order.
-/// This simulator maps the first/second DUP group IDs to main/spare respectively;
+/// This example maps the first/second DUP group IDs to main/spare respectively;
 /// RFC 7104 itself does not define SPEC-23 main/spare or transmission precedence.
 /// Exactly two H264/H265 streams with the same payload mapping are supported.
 /// Different PTs are legal in RFC 7104, but require per-leg format state we lack.

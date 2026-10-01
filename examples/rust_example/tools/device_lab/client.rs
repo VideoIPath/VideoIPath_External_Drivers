@@ -5,8 +5,8 @@
 //! Preserve the useful device-I/O properties when adapting it: fresh observations,
 //! confirmed writes, bounded deadlines and no replay of an ambiguous action.
 //! For a stream-based vendor API, one reader must distinguish replies from events.
+use super::simulator::{self, Frame, Request};
 use crate::domain::{Alarm, Device, Event, Failure, Location, MediaState, PortKey, Values};
-use crate::simulator::{self, Frame, Request};
 use serde_json::Value;
 use std::{
     collections::HashMap,

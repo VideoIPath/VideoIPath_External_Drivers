@@ -113,7 +113,7 @@ impl Registry {
         let root = Location::root();
         let numeric = |label: &str, low, high, step, integer, default| Parameter {
             label: label.into(),
-            description: "Modeled simulator parameter".into(),
+            description: "Demonstration parameter".into(),
             value_type: ValueType::Number {
                 range: Some((low, high, Some(step))),
                 unit: None,
@@ -236,11 +236,10 @@ impl Registry {
         // protocol::media_state, whose accepted SDP subset is sample-specific.
         let transceiver = |id: &str, kind, format: Value, topology: bool| json!({"id":id,"label":id,"dynamic_values":registry.definitions(&Location::port("module-1",kind,id)),"topology_info":if topology {json!({"format_type":format,"format_id":null,"sdp_support":id=="tx-1" || id=="rx-1" || id=="rx-audio","sips":true,"interface_options":[{"module_id":"module-1","port_id":"net-main"},{"module_id":"module-1","port_id":"net-spare"},{"module_id":"module-2","port_id":"net-aux"}]})} else {Value::Null}});
         let alternate = transceiver("rx-alt", PortKind::Receiver, json!("Video"), true);
-        registry.structure = json!({"label":"Rust control-plane simulator","version":"0.1.0","product_name":"SPEC-23 teaching device","configuration_order":"senders_first","dynamic_values":registry.definitions(&root),"resource_links":[{"type":"rx-tx","from":{"module_id":"module-1","port_id":"rx-1"},"to":{"module_id":"module-1","port_id":"tx-1"}}],"modules":[
+        registry.structure = json!({"label":"External Driver API Example","version":env!("CARGO_PKG_VERSION"),"product_name":"SPEC-23 teaching device","configuration_order":"senders_first","dynamic_values":registry.definitions(&root),"resource_links":[{"type":"rx-tx","from":{"module_id":"module-1","port_id":"rx-1"},"to":{"module_id":"module-1","port_id":"tx-1"}}],"modules":[
             {"id":"module-1","label":"Media module","dynamic_values":registry.definitions(&Location::module("module-1")),"senders":[transceiver("tx-1",PortKind::Sender,json!("Video"),true),transceiver("tx-audio",PortKind::Sender,json!("Audio"),true),transceiver("tx-asi",PortKind::Sender,json!("ASI"),true),transceiver("tx-anc",PortKind::Sender,json!("Ancillary"),true),transceiver("tx-unknown",PortKind::Sender,Value::Null,true),transceiver("tx-monitor",PortKind::Sender,Value::Null,false)],"receivers":[transceiver("rx-1",PortKind::Receiver,json!("Video"),true),transceiver("rx-audio",PortKind::Receiver,json!("Audio"),true)],"generic_ports":[{"id":"fan-1","label":"Fan","dynamic_values":registry.definitions(&Location::port("module-1",PortKind::Generic,"fan-1"))}],"network_interfaces":[{"type":"redundant_pair","interface_1":interface("module-1","net-main",json!("192.0.2.10")),"interface_2":interface("module-1","net-spare",json!("198.51.100.10"))}]},
             {"id":"module-2","label":"Auxiliary interfaces","dynamic_values":registry.definitions(&Location::module("module-2")),"senders":[],"receivers":[],"generic_ports":[],"network_interfaces":[interface("module-2","net-aux",Value::Null)]}
         ]});
-        registry.structure["version"] = json!(env!("CARGO_PKG_VERSION"));
         registry.structure["modules"][0]["senders"][0]["topology_info"]["format_id"] =
             json!("raw-video");
         registry.structure["modules"][0]["receivers"][0]["topology_info"]["format_id"] =
@@ -331,7 +330,7 @@ impl Registry {
         }
     }
     /// Resolve a stable port and optional stream instance. The 64-instance bound
-    /// is this simulator's capacity, not a SPEC-23 limit; null is a normal single port.
+    /// is this example's capacity, not a SPEC-23 limit; null is a normal single port.
     pub fn port(&self, key: &PortKey) -> Result<Value, Failure> {
         if key.sub_index.is_some_and(|n| n == 0 || n > 64) {
             return Err(Failure::Range);

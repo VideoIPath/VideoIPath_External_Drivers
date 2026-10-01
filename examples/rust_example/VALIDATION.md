@@ -52,11 +52,53 @@ Run from this directory:
 cargo fmt --all --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --all-targets
+cargo test --locked --features device-lab --all-targets
 cargo doc --locked --no-deps
 ```
 
 Record completed executions and environmental limitations below as implementation
 proceeds. An unchecked gate is not a passing gate.
+
+### 0.3.0 — lean API example (2026-10-01)
+
+The default program now uses in-memory `DemoDevice`; the independent simulator
+and Unix adapter are optional `device-lab` tooling outside `src`. Previous image,
+latency and soak measurements below **do not qualify this new execution path**.
+There is still no target-release/schema/physical-device acceptance evidence.
+
+| Check | Current local evidence |
+| --- | --- |
+| Default tests | 82 automatic tests passed, including the actual lean binary against a local TLS backend |
+| Optional laboratory regression | 113 automatic tests passed with `--features device-lab`, including the default cases; two opt-in tests ignored |
+| Compose interpolation | Explicit ignored deployment-contract test passed; now one service with no target socket settings |
+| Author lesson | `cargo run --locked --example api_walkthrough` completed offline without environment settings or credentials |
+| Static checks | Formatting, all-features/all-targets Clippy with warnings denied, and warnings-denied rustdoc passed |
+| New lifecycle | Actual child preserves state on WebSocket reconnect, resets on process restart, emits teaching signal/alarm events, orders causal response/events, and shuts down on SIGTERM |
+| Packaging | Source-only static image built; single-service Compose smoke passed (non-root/read-only, liveness, singleton, stable UUID, recreate/restart/stop); no live target |
+| Security | Final image and locked Cargo graph passed Trivy 0.74.0 fixable HIGH/CRITICAL policy; source secret scan reported no findings |
+| Artifact isolation | Runtime filesystem has no lab executable, source, shell/build tools or secret environment file; `--version` reports 0.3.0 |
+
+Final local image: `rust-example:local-0.3.0`, image ID
+`sha256:e4fd6a8e4937482ffe93f38e94173bfb01c76c3474880540eb02207d3b527820`,
+Docker-reported 2,938,052 bytes, UID/GID `10001:10001`. This is not a published
+registry digest. No accepted deployment was replaced; prior local images remain.
+The optional long-duration soak was not rerun (its automatic short regression
+passed); the old timing figures remain historical. Local documentation links and
+shell syntax were checked. Hosted CI, real reboot and target commissioning remain
+unperformed.
+
+The first container build caught an implicit optional-example path that Cargo
+could not resolve in the source-only context. Adding the explicit `latency` example
+path preserves the opt-in feature without copying test tooling into the image.
+
+Review also caught unrelated demo ticks retiring a session during writes. The
+explicit independent-event mode now permits read-only signal/alarm updates to
+interleave, while causal writable-value changes still follow their response.
+A paused-clock barrier test holds a mutation pending, receives both tick events
+and a keepalive, then verifies response/causal ordering. The lab retains its
+conservative freshness/conflict policy; vendor reconciliation is not assumed.
+
+### Historical 0.1/0.2 implementation gates
 
 | Gate | Current evidence |
 | --- | --- |
@@ -167,7 +209,7 @@ layer instead of trying to repair a Panel before its device/catalog is valid.
 | Discovery and Inventory | One stable candidate, operator add, accepted structure, Device UP |
 | Metadata catalog | Complete collector map and frontend decoding, including optional range metadata |
 | Reads | All structured locations and requested-ID cases; empty-list policy confirmed |
-| Writes | Safe set, independent simulator readback, restored initial state, per-item errors |
+| Writes | Safe set, model readback, restored initial state, per-item errors; physical readback required for a vendor adapter |
 | Panel and async | Correct controls/read-only display; independent change delivered once |
 | Media control | SDP, enable/disable, redundancy, IPT drift repair, routing/multiplicity cases |
 | Recovery | Device/VIP loss, stable identity, saved references, stale subscriptions and reconnect |

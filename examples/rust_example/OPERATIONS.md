@@ -1,6 +1,9 @@
 # Operating the Rust external-driver example
 
-This example runs one driver and one independent simulated device. **This example has no live VideoIPath validation.** Local tests and container health establish local behavior; target acceptance requires the commissioning sequence below. The simulator models device control, not physical media transmission.
+This example runs **one driver with in-memory demonstration state**. No simulator
+service or device socket is needed. The model shows API behavior, not physical
+media transmission. This example has no live VideoIPath commissioning evidence;
+container health alone does not establish target acceptance.
 
 ## Deployment contract
 
@@ -9,17 +12,16 @@ Use a Linux Docker Engine host outside the VideoIPath cluster and Docker Compose
 | Resource | Contract |
 | --- | --- |
 | Driver | `rust-example driver`; outbound verified TLS WebSocket to the configured VideoIPath virtual IP |
-| Simulator | `rust-example simulator`; separate process, no network, no VideoIPath credentials |
-| Device API | Unix socket `/run/rust-example/device.sock`; simulator-only protocol, not SPEC-23 |
-| Local controls | Separate `/run/rust-example/control.sock`; invoke `rust-example simctl` in the simulator container |
-| Identity | One externally provisioned stable node UUID per simulated target; never scale either service |
-| Socket volume | Project-private, directory owned by UID/GID `10001:10001`; both processes use that identity |
+| Demonstration state | In-memory values, alarms and configurations; no physical device connection |
+| Identity | One externally provisioned stable node UUID per example instance; never scale the service |
 | Driver state | Project-private named volume at `/var/lib/rust-example`; local heartbeat/readiness diagnostics |
-| Simulator health | Separate project-private volume at `/var/lib/rust-example-simulator` |
 | Lock | Process-held node-ID lock in the **same host directory** for every project, default `/var/lock/videoipath-drivers` |
 | Runtime restrictions | Non-root, read-only root filesystem, all capabilities dropped, no-new-privileges, no published ports |
 
-The shared socket directory is the trust boundary between these two services. Docker administration is privileged access. The simulator's control state survives a **driver** restart, but a **simulator** restart resets the modeled device to defaults. Health volumes do not make device control state durable.
+State survives a WebSocket reconnect but resets when the driver process restarts.
+Health volumes do not make control state durable. While connected, a ten-second
+teaching clock alternates `signal_present` and raises/clears a clearly labeled demo
+warning. It does not represent a physical fault or background sensor polling.
 
 ### 1. Prepare configuration and directories
 
@@ -38,9 +40,14 @@ Set the empty `COMPOSE_PROJECT_NAME`, `DRIVER_IMAGE`, `VIDEOIPATH_TOKEN`, and `V
 
 The URL is the complete lower-case endpoint, `wss://<videoipath-virtual-ip>/x-driver/v1`, **without a query**. The application appends `node_id` and sends the token in the bearer header. URL credentials, fragments, plaintext WebSockets and disabled TLS verification are unsupported.
 
-`.env.example` is the complete operator inventory: every public application setting is explicitly forwarded to the driver; deployment settings govern Compose. The simulator receives only socket paths and its dedicated state path. There is no detailed-payload logging option and no `*_FILE` secret-loading option.
+`.env.example` is the complete operator inventory: application settings are explicitly
+forwarded; deployment settings govern Compose. There are no target socket settings,
+detailed-payload logging option or `*_FILE` secret-loading option.
 
-Keep the default in-container directory paths for Compose. Named volumes inherit ownership from those image directories on first use. Changing `DRIVER_STATE_DIRECTORY` requires preparing the new volume's UID/GID `10001:10001` ownership before launch; changing an environment value does not initialize existing volume permissions. Socket paths may use distinct filenames **inside** `/run/rust-example`; paths outside that shared mount are for separately prepared native deployments. Changing the lock target inside the container never changes the requirement for one common host lock directory.
+Keep the default in-container paths for Compose. Named volumes inherit ownership
+from image directories on first use. Changing `DRIVER_STATE_DIRECTORY` requires
+preparing UID/GID `10001:10001` ownership; an environment change does not repair
+existing permissions. All projects must use one common underlying host lock directory.
 
 ### Secrets and interpolation
 
@@ -93,40 +100,52 @@ docker compose --env-file .env -f compose.yaml up -d --wait
 # Show service status without rendering configuration or environment secrets.
 docker compose --env-file .env -f compose.yaml ps
 # Normal logs contain sanitized operational events; review before sharing externally.
-docker compose --env-file .env -f compose.yaml logs --tail 200 driver simulator
-# Each check reads only its own local heartbeat, using that service's state directory.
+docker compose --env-file .env -f compose.yaml logs --tail 200 driver
+# This check reads only the local heartbeat.
 docker compose --env-file .env -f compose.yaml exec -T driver rust-example health
-docker compose --env-file .env -f compose.yaml exec -T simulator rust-example health
 # Read sanitized dependency state separately; this is not a secret-bearing environment dump.
 docker compose --env-file .env -f compose.yaml exec -T driver rust-example status
 ```
 
-Use the simulator commands and their supported arguments in [the simulator guide](docs/SIMULATOR.md). Invoke controls through `docker compose exec -T simulator rust-example simctl …`; they are local device operations, not VideoIPath API calls. No public control listener is exposed.
+For offline API lessons, run `cargo run --locked --example api_walkthrough` natively.
+The optional [device lab](tools/device_lab/) is separate native test equipment;
+its old `simulator`/`simctl` commands do not exist in the default driver image.
 
 | Signal | Meaning and action |
 | --- | --- |
 | Local health / `up --wait` | A recent local heartbeat; confirms liveness, not an authenticated VideoIPath session |
-| Readiness file | Separate `device` and `videoipath` flags; both must be true for connected operation |
+| Readiness file | `device` means in-memory model available, **not physical equipment**; `videoipath` means backend session connected |
 | Dependency outage | Inspect sanitized logs/readiness and restore the dependency; do not restart solely because it is unavailable |
 | `unhealthy` | Inspect local progress; plain Compose does not automatically restart an unhealthy process |
 | Permanent startup/auth/TLS failure | Correct the setting, trust chain or authorization; the default `on-failure:5` bounds container retries |
 | Lock refusal | Find the existing owner; stop it intentionally. Never delete a lock file to bypass a live owner |
 
-Logs rotate with the Docker `local` driver; CPU, memory, PID and log limits are set per service. Load-test changes to bounds and deadlines. Keep device-operation timeout < ordinary-request timeout <= IPT timeout and Compose stop grace greater than application shutdown timeout. Defaults are 3 s / 5 s / 20 s for operations and 5 s / 20 s for application shutdown / container grace.
+Logs rotate with the Docker `local` driver; CPU, memory, PID and log limits are set.
+Keep ordinary-request timeout <= IPT timeout and stop grace above shutdown timeout.
+Defaults are 5/20 seconds for requests and 5/20 seconds for shutdown/container grace.
+When adding a vendor adapter, give its operations deadlines below request deadlines.
 
 ### 4. Stop, upgrade and roll back
 
 ```sh
-# Stop driver first to stop new operations before stopping the simulated device.
+# Stop the sole owner before upgrade or rollback.
 docker compose --env-file .env -f compose.yaml stop driver
-docker compose --env-file .env -f compose.yaml stop simulator
 # Remove containers/network while retaining named volumes; do not use --volumes for routine shutdown.
 docker compose --env-file .env -f compose.yaml down
 ```
 
-Before an upgrade, securely back up `.env` and record node ID, current image digest, public CA reference, scenario/version and any required acceptance evidence. The node ID lives in configuration, not a regenerated container identity. Simulator control state is ephemeral; capture the intended scenario through the documented commands, not by assuming a volume backup preserves it.
+Before an upgrade, securely back up `.env` and record node ID, image digest, public
+CA reference and acceptance evidence. Node identity lives in configuration, not a
+regenerated container identity. Demo control state is ephemeral; record and reapply
+the intended configuration rather than assuming a diagnostic volume preserves it.
 
-Pull/build the candidate without starting a second owner. Stop the existing driver, update `DRIVER_IMAGE`, then recreate the services with the commands above. Check liveness, readiness, Inventory continuity and a controlled write/readback. Roll back by stopping the candidate and restoring the previous image reference with the same node ID and configuration. Recreating the simulator resets its state; reapply the intended scenario. Never use rolling overlap or `--scale` for this node.
+Pull/build without starting a second owner. Stop the old driver, update
+`DRIVER_IMAGE`, then recreate it. Check liveness, readiness, Inventory continuity
+and controlled read/write behavior. Roll back by stopping the candidate and restoring
+the recorded image **and its matching Compose/configuration files**, with the same
+node ID. Version 0.2 used two services; stop that entire old project before moving
+to 0.3, and retain its files for rollback. Reapply demo state after restart.
+Never use rolling overlap or `--scale` for this node.
 
 The OS lock blocks same-host duplicates only when every project binds the same underlying host directory. Different hosts need explicit singleton ownership; this example provides no cross-host lease or leader election. Changing a node ID creates a replacement identity and requires deliberate Inventory/reference migration.
 
@@ -186,8 +205,11 @@ Record the exact VideoIPath release/backend SHA and immutable driver image diges
 | Session and structure | Authenticated TLS session; backend accepts the advertised structure without decoder errors |
 | Discovery and Inventory | One candidate for the stable UUID; operator add/sync as appropriate; Device UP and expected topology |
 | Parameter catalog | Complete metadata and scoped addresses; expected Panel presentation |
-| Control and monitoring | Controlled reads/writes with independent simulator readback; partial failures; local changes appear asynchronously |
+| Control and monitoring | Controlled reads/writes against demo state; partial failures; teaching changes appear asynchronously |
 | Media configuration model | SDP/IPT/drift/repair and applicable scenarios match simulated state; no claim of media transport |
 | Lifecycle | Dependency loss/recovery, singleton refusal, preserved Inventory identity and references after driver recreation |
 
-Stop at the first failing layer and record sanitized evidence. This example's unperformed target acceptance does not establish anything about the maturity of the VideoIPath API. Replacing the simulator with a physical device also requires firmware/API, physical readback and media validation.
+Stop at the first failing layer and record sanitized evidence. This example's
+unperformed acceptance says nothing about API maturity. Replacing `DemoDevice`
+with a physical adapter additionally requires firmware/API, physical readback,
+device-loss behavior and media validation.

@@ -1,5 +1,12 @@
 //! A bounded control-plane workload, not a synthetic claim about physical throughput.
-use rust_example::{application, device::Client, protocol::Request, registry::Registry, simulator};
+#![cfg(feature = "device-lab")]
+
+use rust_example::{
+    application,
+    lab::{client::Client, simulator},
+    protocol::Request,
+    registry::Registry,
+};
 use serde_json::{Value, json};
 use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;

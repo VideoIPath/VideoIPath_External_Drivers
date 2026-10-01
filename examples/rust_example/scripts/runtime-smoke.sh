@@ -1,10 +1,24 @@
 #!/bin/sh
 # Explicit local Docker test only. Creates its own project/volumes and removes them.
 # No VideoIPath target is contacted: the driver attempts only its own loopback port 9.
+# Build the current checkout first; this script checks the supplied image, not cached source.
 set -eu
 cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 image=${1:?usage: sh scripts/runtime-smoke.sh local-image-reference}
-scratch=$(mktemp -d "${TMPDIR:-/tmp}/rust-example-smoke.XXXXXX")
+version=$(awk -F '"' '/^version = / { print $2; exit }' Cargo.toml)
+reported=$(docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" --version)
+if [ "$reported" != "rust-example $version" ]; then
+  echo 'Image version differs from this checkout; rebuild the runtime image before this test.' >&2
+  exit 1
+fi
+help=$(docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" --help)
+if printf '%s\n' "$help" | grep -Eq 'simulator|simctl'; then
+  echo 'Image still exposes lab commands; rebuild the single-process runtime image.' >&2
+  exit 1
+fi
+scratch_root=${TMPDIR:-/tmp}
+if [ -d /tmp/opencode ]; then scratch_root=/tmp/opencode; fi
+scratch=$(mktemp -d "$scratch_root/rust-example-smoke.XXXXXX")
 mkdir -m 700 "$scratch/locks" "$scratch/certificates"
 # Restrict the ownership helper to this newly created test directory. It is not
 # the runtime image, needs no network, and never touches a real deployment lock.
@@ -43,11 +57,21 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 compose config --quiet >/dev/null 2>&1
+[ "$(compose config --services)" = driver ]
 compose up -d --wait --wait-timeout 30
-compose exec -T driver /usr/local/bin/rust-example health
-compose exec -T simulator /usr/local/bin/rust-example health
-compose exec -T simulator /usr/local/bin/rust-example simctl set null level 60
-compose exec -T driver /usr/local/bin/rust-example status
+check_driver() {
+  id=$(compose ps -q driver)
+  [ -n "$id" ]
+  [ "$(compose ps --services --status running)" = driver ]
+  [ "$(docker inspect --format '{{.Config.User}} {{.HostConfig.ReadonlyRootfs}} {{len .HostConfig.PortBindings}}' "$id")" = '10001:10001 true 0' ]
+  # Project configuration preserves the UUID across restart/recreate. Inspect only
+  # this nonsecret equality, never dump the container environment (it has a token).
+  [ "$(docker inspect --format '{{range .Config.Env}}{{if eq . "VIDEOIPATH_NODE_ID=8fc48734-b6d4-4e40-b377-c460ca4dd420"}}stable{{end}}{{end}}' "$id")" = stable ]
+  compose exec -T driver /usr/local/bin/rust-example health
+  status=$(compose exec -T driver /usr/local/bin/rust-example status)
+  printf '%s\n' "$status" | grep -qx 'videoipath=false'
+}
+check_driver
 # A second owner must fail before any target/VIP connection; never scale the project.
 if compose run --rm --no-deps driver >"$scratch/duplicate.log" 2>&1; then
   echo 'singleton test unexpectedly succeeded' >&2
@@ -58,13 +82,14 @@ if ! grep -q 'node ownership unavailable' "$scratch/duplicate.log"; then
   exit 1
 fi
 # Recreate only after stopping the owner. The stable UUID stays in the same fixture.
+before=$(compose ps -q driver)
 compose stop driver
+compose up -d --force-recreate --wait --wait-timeout 30 driver
+[ "$(compose ps -q driver)" != "$before" ]
+check_driver
+compose restart driver
 compose up -d --wait --wait-timeout 30 driver
-compose exec -T simulator /usr/local/bin/rust-example simctl status
-# The simulator's per-socket kernel locks permit safe stale-socket recovery after
-# a crash. This kills only this disposable test project, never an operator service.
-compose kill -s SIGKILL simulator
-compose up -d --wait --wait-timeout 30 simulator
-compose exec -T simulator /usr/local/bin/rust-example simctl status
+check_driver
 compose stop
-echo 'Runtime smoke passed: non-root/read-only services, local health, singleton refusal, restart, crash recovery and stop.'
+[ -z "$(compose ps --services --status running)" ]
+echo 'Runtime smoke passed: one non-root/read-only driver, liveness, singleton refusal, stable UUID, recreate, restart and stop. VideoIPath readiness remains false.'
