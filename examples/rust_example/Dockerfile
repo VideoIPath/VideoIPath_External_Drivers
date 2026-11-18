@@ -1,6 +1,6 @@
 # Both manifest-list digests were resolved from the official Docker registry on 2026-09-30.
 # A version plus digest prevents a rebuild from silently selecting a different base.
-FROM rust:1.99.1-alpine@sha256:557a94c82b485a14b569120e00867267108c734efe33f10cc31ca0cd5dd1eca9 AS builder
+FROM rust:1.99.1-alpine@sha256:44819b27be4c97b0e4d7203bd2e02c4820f97700211b6a37fb4c246a2de59383 AS builder
 WORKDIR /build
 # Explicit inputs and the context allowlist keep local credentials and the private plan out.
 COPY Cargo.toml Cargo.lock ./
