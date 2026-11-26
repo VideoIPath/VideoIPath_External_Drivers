@@ -12,7 +12,7 @@ RUN install -d -o 10001 -g 10001 -m 0700 /runtime/var/lib/rust-example \
        /runtime/var/lock/videoipath-drivers \
     && install -d -m 0755 /runtime/etc/rust-example/certificates
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:aafe993665bf6200db38a02c11a9351e782a84b6a45e7f33b6695638c88e3931 AS runtime
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5 AS runtime
 # The pinned runtime supplies CA roots without unused OpenSSL libraries or
 # a shell, package manager, compiler, source tree, or mutable package installation.
 COPY --from=builder /build/target/release/rust-example /usr/local/bin/rust-example
