@@ -19,6 +19,16 @@ reference, not a framework you must adopt wholesale.
 > [!IMPORTANT]
 > Source, tests and Docker Compose are implemented and locally tested. This example has **not been commissioned against a VideoIPath release or physical device**. Its local models are not an official schema; validate your driver against your intended release and firmware. Exact evidence and limitations are in [VALIDATION.md](VALIDATION.md) and the [coverage ledger](docs/COVERAGE.md).
 
+### Package or run with DriverHub
+
+The stable driver ID is `rust-example`. To build a local `linux/amd64` package from the **committed HEAD**, run the following in this directory with Python 3.11+, Git, and an OCI-capable Docker Buildx builder:
+
+```sh
+python3 scripts/package-driverhub.py /path/to/new/rust-example-package
+```
+
+The output contains `driver-release.json`, the [input declaration](driver-config.json), the OCI image archive and `deployment.tar.gz`. Transfer all four files. Import a local build as a **customer build**. The [offline operator instructions](deployment/DRIVERHUB.md) ship inside the bundle; no checkout or registry is needed to run it. A public release follows the [repository's release and commissioning requirements](../../Drivers/RELEASING.md); packaging does not create a tag or publish anything.
+
 ## 1. Start with the capability you need
 
 You do not need media routing to expose a temperature or gain control. Keep unsupported capabilities out of your structure, and return a correlated error for unsupported requests rather than pretending success.

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "inputs": [
+    {"name": "videoipathUrl", "type": "string", "required": true, "minLength": 1, "env": "VIDEOIPATH_URL", "description": "Complete wss:// endpoint ending in /x-driver/v1 without credentials, query or fragment."},
+    {"name": "videoipathToken", "type": "string", "required": true, "secret": true, "minLength": 1, "env": "VIDEOIPATH_TOKEN", "description": "Reference to the deployment's bearer credential. Supply its value literally at runtime."},
+    {"name": "nodeId", "type": "string", "required": true, "minLength": 1, "env": "VIDEOIPATH_NODE_ID", "description": "Stable non-placeholder UUID for this instance; preserve across hosts and upgrades."},
+    {"name": "caBundle", "type": "string", "required": false, "env": "VIDEOIPATH_CA_BUNDLE", "description": "Absolute container path to a readable public CA bundle. Omit to use system trust."},
+    {"name": "stateDirectory", "type": "string", "required": false, "default": "/var/lib/rust-example", "env": "DRIVER_STATE_DIRECTORY"},
+    {"name": "lockDirectory", "type": "string", "required": false, "default": "/var/lock/videoipath-drivers", "env": "DRIVER_LOCK_DIRECTORY"},
+    {"name": "logLevel", "type": "string", "required": false, "default": "info", "env": "DRIVER_LOG_LEVEL", "description": "trace, debug, info, warn or error."},
+    {"name": "configurationOrder", "type": "string", "required": false, "default": "senders_first", "env": "DRIVER_CONFIGURATION_ORDER", "description": "senders_first, receivers_first or all."},
+    {"name": "requestLimit", "type": "integer", "required": false, "default": 16, "minimum": 1, "maximum": 256, "env": "DRIVER_REQUEST_LIMIT"},
+    {"name": "outboundLimit", "type": "integer", "required": false, "default": 128, "minimum": 2, "maximum": 4096, "env": "DRIVER_OUTBOUND_LIMIT"},
+    {"name": "maxFrameBytes", "type": "integer", "required": false, "default": 1048576, "minimum": 1024, "maximum": 4194304, "env": "DRIVER_MAX_FRAME_BYTES"},
+    {"name": "requestTimeoutMs", "type": "integer", "required": false, "default": 5000, "minimum": 100, "maximum": 7000, "env": "DRIVER_REQUEST_TIMEOUT_MS", "description": "Must not exceed iptTimeoutMs."},
+    {"name": "iptTimeoutMs", "type": "integer", "required": false, "default": 20000, "minimum": 100, "maximum": 25000, "env": "DRIVER_IPT_TIMEOUT_MS"},
+    {"name": "reconnectMinMs", "type": "integer", "required": false, "default": 500, "minimum": 100, "maximum": 30000, "env": "DRIVER_RECONNECT_MIN_MS", "description": "Must not exceed reconnectMaxMs."},
+    {"name": "reconnectMaxMs", "type": "integer", "required": false, "default": 30000, "minimum": 100, "maximum": 120000, "env": "DRIVER_RECONNECT_MAX_MS"},
+    {"name": "shutdownTimeoutMs", "type": "integer", "required": false, "default": 5000, "minimum": 100, "maximum": 10000, "env": "DRIVER_SHUTDOWN_TIMEOUT_MS", "description": "Must be shorter than the Compose stop grace period."}
+  ]
+}
