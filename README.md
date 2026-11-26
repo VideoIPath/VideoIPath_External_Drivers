@@ -4,6 +4,11 @@
 $\Large\color{green}{\textsf{About This Repository}}$
 
 This guide is provided by Nevion to encourage 3rd party developers to create and contribute to the VideoIPath External Drivers repository.
+This is a Nevion initiative, and we genuinely welcome feedback on how to improve it. 
+
+> [!WARNING]
+An active VideoIPath maintenance contract covers assistance with VideoIPath external driver API quality-assurance and bug-related matters.
+It does not, however, include driver creation or debugging on driver behaviour.
 
 Please read the Code of Conduct and Contributing Guidelines before getting started.
 
