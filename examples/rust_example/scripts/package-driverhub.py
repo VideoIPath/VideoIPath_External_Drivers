@@ -3,7 +3,6 @@
 import argparse
 import gzip
 import hashlib
-import io
 import json
 from pathlib import Path
 import shutil
@@ -12,6 +11,7 @@ import tarfile
 import tempfile
 import tomllib
 
+from distribution import add_bytes, add_distribution
 
 SOURCE = "examples/rust_example"
 ROOT = Path(__file__).resolve().parents[3]
@@ -87,14 +87,12 @@ def build(output):
             "RELEASE-NOTES.md": f"{driver}/CHANGELOG.md",
             "LICENSE": f"{commit}:LICENSE",
         }
-        for name in ("compose.yaml", ".env.example", "driver-config.json", "THIRD_PARTY.md", "VALIDATION.md"):
+        for name in ("compose.yaml", ".env.example", "driver-config.json", "THIRD_PARTY.md"):
             files[name] = f"{driver}/{name}"
         with tarfile.open(bundle, "w:gz") as deployment:
             for name, revision in files.items():
-                data = git("show", revision)
-                member = tarfile.TarInfo(name)
-                member.size = len(data)
-                deployment.addfile(member, io.BytesIO(data))
+                add_bytes(deployment, name, git("show", revision))
+            add_distribution(deployment, commit)
 
         def checksum(path):
             with path.open("rb") as stream:

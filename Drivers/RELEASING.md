@@ -78,8 +78,8 @@ The bundled README must tell an operator how to supply settings and credential f
 
 ## Publish a version
 
-1. The contributor submits the driver, declaration, Compose configuration, documentation and commissioning evidence for review. A repository maintainer checks the driver ID and authorizes a publisher with tag/release access. Protect release tags and use immutable GitHub releases where available. Never move a published tag or replace its assets; any change to released bytes requires a new version.
-2. Build from the exact reviewed commit. Test the **candidate image** using the packaged configuration on the declared platforms, including the documented device and VideoIPath checks. Export those same manifests and layers; do not rebuild between testing and publication.
+1. The contributor submits the driver, declaration, Compose configuration and documentation for review. A repository maintainer checks the driver ID and authorizes a publisher with tag/release access. Protect release tags and use immutable GitHub releases where available. Never move a published tag or replace its assets; any change to released bytes requires a new version.
+2. Build from the exact reviewed commit. Test the **candidate image** using the packaged configuration on the declared platforms. Describe what was tested and distinguish simulated or untested combinations from verified ones. Neither a validation record nor live commissioning is required to publish a DriverHub package. Export those same manifests and layers; do not rebuild between testing and publication.
 3. Stage the release files. For example, in a POSIX shell at the repository root, with the reviewed tag available locally, export its tracked files into an empty staging directory. This example driver needs only three deployment files; add any other runtime files and notices explicitly.
 
    ```sh
