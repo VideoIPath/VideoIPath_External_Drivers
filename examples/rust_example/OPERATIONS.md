@@ -2,26 +2,22 @@
 
 This example runs **one driver with in-memory demonstration state**. No simulator
 service or device socket is needed. The model shows API behavior, not physical
-media transmission. This example has no live VideoIPath commissioning evidence;
-container health alone does not establish target acceptance.
+media transmission. Container health alone does not establish target acceptance.
 
 ## Deployment contract
 
-Use a Linux Docker Engine host outside the VideoIPath cluster and Docker Compose v2 with `up --wait` and long-form bind mounts. Compose configuration was checked with **2.40.3**. Run commands in `examples/rust_example/` unless stated otherwise. No prebuilt public image is provided.
+Use a Linux Docker Engine host outside the VideoIPath cluster and Docker Compose v2
+with `up --wait` and long-form bind mounts. Run commands in `examples/rust_example/`
+unless stated otherwise.
 
-| Resource | Contract |
-| --- | --- |
-| Driver | `rust-example driver`; outbound verified TLS WebSocket to the configured VideoIPath virtual IP |
-| Demonstration state | In-memory values, alarms and configurations; no physical device connection |
-| Identity | One externally provisioned stable node UUID per example instance; never scale the service |
-| Driver state | Project-private named volume at `/var/lib/rust-example`; local heartbeat/readiness diagnostics |
-| Lock | Process-held node-ID lock in the **same host directory** for every project, default `/var/lock/videoipath-drivers` |
-| Runtime restrictions | Non-root, read-only root filesystem, all capabilities dropped, no-new-privileges, no published ports |
+Provision one stable node UUID per instance and run only one active owner. Every
+project on the same host must use the **same host lock directory**.
+[`compose.yaml`](compose.yaml) defines the service, mounts, runtime user, security
+settings, and resource limits.
 
 State survives a WebSocket reconnect but resets when the driver process restarts.
-Health volumes do not make control state durable. While connected, a ten-second
-teaching clock alternates `signal_present` and raises/clears a clearly labeled demo
-warning. It does not represent a physical fault or background sensor polling.
+The named volume holds local heartbeat and readiness diagnostics. Demo alarms
+and signal changes illustrate the API; they do not come from physical equipment.
 
 ### 1. Prepare configuration and directories
 
@@ -30,24 +26,23 @@ warning. It does not represent a physical fault or background sensor polling.
 umask 077
 cp -n .env.example .env
 chmod 600 .env
-# Prepare the single shared host lock directory; all driver projects must use this exact host path.
+# Prepare the shared host lock directory for the defaults in .env.example.
 sudo install -d -o 10001 -g 10001 -m 0700 /var/lock/videoipath-drivers
 # Only public CA certificates belong here; bind creation is disabled to catch misspelled paths.
 mkdir -p deployment/certificates
 ```
 
-Set the empty `COMPOSE_PROJECT_NAME`, `DRIVER_IMAGE`, `VIDEOIPATH_TOKEN`, and `VIDEOIPATH_NODE_ID`, and replace the deliberately invalid URL. Generate a UUID once using your platform's UUID generator and preserve it in the protected configuration backup. Example UUIDs and placeholder credentials are not deployment identities.
+Fill in the required settings marked in [`.env.example`](.env.example), including
+replacing the deliberately invalid URL. Generate the node UUID once using your
+platform's UUID generator and preserve it in the protected configuration backup.
 
 The URL is the complete lower-case endpoint, `wss://<videoipath-virtual-ip>/x-driver/v1`, **without a query**. The application appends `node_id` and sends the token in the bearer header. URL credentials, fragments, plaintext WebSockets and disabled TLS verification are unsupported.
 
-`.env.example` is the complete operator inventory: application settings are explicitly
-forwarded; deployment settings govern Compose. There are no target socket settings,
-detailed-payload logging option or `*_FILE` secret-loading option.
-
-Keep the default in-container paths for Compose. Named volumes inherit ownership
-from image directories on first use. Changing `DRIVER_STATE_DIRECTORY` requires
-preparing UID/GID `10001:10001` ownership; an environment change does not repair
-existing permissions. All projects must use one common underlying host lock directory.
+[`.env.example`](.env.example) lists supported options and defaults. Keep the
+default in-container paths for Compose. Named volumes inherit ownership from image
+directories on first use. If you change `DRIVER_STATE_DIRECTORY`, prepare
+ownership for the runtime user defined in [`compose.yaml`](compose.yaml); changing
+the setting does not repair existing permissions.
 
 ### Secrets and interpolation
 
@@ -84,13 +79,11 @@ docker compose --env-file .env -f compose.yaml -f compose.build.yaml up -d --wai
 
 The build context is a deny-by-default allowlist: Cargo manifests/lock and Rust source only. The Dockerfile copies explicit inputs, never the workspace. The private plan, populated `.env`, CA material, tests, caches and `target/` do not enter the context. Runtime contains the compiled binary and public trust roots, not the builder's compiler or Cargo cache. Before release, inspect the actual image/layers and scan the **same candidate image** for fixable high/critical vulnerabilities. A successful build is not a vulnerability scan or target-compatibility result.
 
-| Pinned input | Source and verification |
-| --- | --- |
-| Rust `1.98.1-alpine` (Alpine 3.24.2, native musl) | Official `library/rust` registry; digest `sha256:7cc1c22d77d9432f7fe012a70e6d3e555af54c2a6832700ed7d553f1769ae89f` |
-| Distroless `static-debian13:nonroot` | [Maintained distroless images](https://github.com/GoogleContainerTools/distroless); digest `sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3` |
-| Public trust roots | Included in the pinned runtime; no mutable runtime `apt install` step |
-
-References were checked on 2026-09-30. A multi-architecture base manifest is not evidence that this application was tested on every architecture. Review base-image/dependency updates together, rerun checks, rebuild, scan and record the replacement digest.
+The [`Dockerfile`](Dockerfile) defines the exact builder and runtime image pins.
+[`Cargo.lock`](Cargo.lock) records the Rust dependency versions. The
+[Rust example CI workflow](../../.github/workflows/rust-example.yml) defines the
+build, vulnerability scans, and container smoke test. A multi-architecture base
+image does not establish that the driver was tested on every architecture.
 
 ### 3. Start and inspect
 
@@ -107,9 +100,8 @@ docker compose --env-file .env -f compose.yaml exec -T driver rust-example healt
 docker compose --env-file .env -f compose.yaml exec -T driver rust-example status
 ```
 
-For offline API lessons, run `cargo run --locked --example api_walkthrough` natively.
-The optional [device lab](tools/device_lab/) is separate native test equipment;
-its old `simulator`/`simctl` commands do not exist in the default driver image.
+See the [README](README.md#3-run-the-lessons-without-videoipath) for offline
+lessons and the [device lab](tools/device_lab/) for optional native test tooling.
 
 | Signal | Meaning and action |
 | --- | --- |
@@ -117,13 +109,12 @@ its old `simulator`/`simctl` commands do not exist in the default driver image.
 | Readiness file | `device` means in-memory model available, **not physical equipment**; `videoipath` means backend session connected |
 | Dependency outage | Inspect sanitized logs/readiness and restore the dependency; do not restart solely because it is unavailable |
 | `unhealthy` | Inspect local progress; plain Compose does not automatically restart an unhealthy process |
-| Permanent startup/auth/TLS failure | Correct the setting, trust chain or authorization; the default `on-failure:5` bounds container retries |
+| Permanent startup/auth/TLS failure | Correct the setting, trust chain or authorization; see `DRIVER_RESTART_POLICY` in [`.env.example`](.env.example) for retry behavior |
 | Lock refusal | Find the existing owner; stop it intentionally. Never delete a lock file to bypass a live owner |
 
-Logs rotate with the Docker `local` driver; CPU, memory, PID and log limits are set.
-Keep ordinary-request timeout <= IPT timeout and stop grace above shutdown timeout.
-Defaults are 5/20 seconds for requests and 5/20 seconds for shutdown/container grace.
-When adding a vendor adapter, give its operations deadlines below request deadlines.
+Keep the ordinary request timeout at or below the IPT timeout, and the Compose
+stop grace period above the driver shutdown timeout. When adding a vendor adapter,
+give its operations deadlines below the driver request deadlines.
 
 ### 4. Stop, upgrade and roll back
 
@@ -143,9 +134,8 @@ Pull/build without starting a second owner. Stop the old driver, update
 `DRIVER_IMAGE`, then recreate it. Check liveness, readiness, Inventory continuity
 and controlled read/write behavior. Roll back by stopping the candidate and restoring
 the recorded image **and its matching Compose/configuration files**, with the same
-node ID. Version 0.2 used two services; stop that entire old project before moving
-to 0.3, and retain its files for rollback. Reapply demo state after restart.
-Never use rolling overlap or `--scale` for this node.
+node ID. Reapply demo state after restart. Never use rolling overlap or `--scale`
+for this node. See the [changelog](CHANGELOG.md) for version-specific migration notes.
 
 The OS lock blocks same-host duplicates only when every project binds the same underlying host directory. Different hosts need explicit singleton ownership; this example provides no cross-host lease or leader election. Changing a node ID creates a replacement identity and requires deliberate Inventory/reference migration.
 
@@ -153,11 +143,22 @@ The OS lock blocks same-host duplicates only when every project binds the same u
 
 Provision a separately revocable deployment token where available. Update it privately in `.env`, stop the old driver, recreate the driver, verify readiness and target acceptance, then retire the old token under your operational procedure. A token shared by other drivers has a wider revocation scope.
 
-For a private CA, put the **public** PEM bundle in `deployment/certificates/`, readable by UID 10001, and set `VIDEOIPATH_CA_BUNDLE` to `/etc/rust-example/certificates/<file>.pem`. Never mount a private CA key. Coordinate overlapping trust for certificate rotation, update the bundle, recreate the driver, and check hostname/chain verification and connection recovery. Blank uses the runtime's normal trust roots.
+For a private CA, put the **public** PEM bundle in the directory set by
+`DRIVER_CERTIFICATE_HOST_PATH`, readable by the runtime user. Set
+`VIDEOIPATH_CA_BUNDLE` to the absolute in-container path described in
+[`.env.example`](.env.example). Never mount a private CA key. Coordinate overlapping
+trust for certificate rotation, update the bundle, recreate the driver, and check
+hostname/chain verification and connection recovery. An empty setting uses the
+runtime's normal trust roots.
 
 ## Optional host boot launcher
 
-`on-failure:5` does not restore stopped containers after host/daemon restart. `deployment/rust-example@.service` is an optional Linux systemd **sample**, supplied but not installed or enabled. It runs image-only `compose up -d --wait` after Docker and the network are available and keeps credentials in `.env`. It is a boot launcher, not continuous liveness monitoring. After a standalone Docker daemon restart, explicitly restart this launcher and verify services.
+Docker's `on-failure` policy does not restore stopped containers after a host or
+daemon restart. [`deployment/rust-example@.service`](deployment/rust-example@.service)
+is an optional Linux systemd sample, supplied without being installed or enabled.
+It starts the Compose project after Docker and the network are available. Use it
+for boot startup and monitor liveness separately. After a standalone Docker daemon
+restart, explicitly restart this launcher and verify services.
 
 To adopt it, first place the reviewed deployment under `/opt/rust-example/<instance>/` with protected `.env`, Compose files and certificate directory; verify `/usr/bin/docker`, host lock permissions and configured image availability. The following is a manual operator installation procedure, not part of building this example:
 
@@ -194,7 +195,9 @@ cargo test --locked --test deployment_contract -- --ignored
 sh scripts/check-compose.sh
 ```
 
-Consult [VALIDATION.md](VALIDATION.md) for checks actually completed and remaining gates. Source/Compose validation, image build, vulnerability scan, hardened runtime testing and live target commissioning are distinct results.
+See the [CI workflow](../../.github/workflows/rust-example.yml) for the current
+automated checks and [VALIDATION.md](VALIDATION.md) for dated results and their
+scope. Live target acceptance requires the commissioning checks below.
 
 ## Target commissioning — deferred
 
@@ -209,7 +212,6 @@ Record the exact VideoIPath release/backend SHA and immutable driver image diges
 | Media configuration model | SDP/IPT/drift/repair and applicable scenarios match simulated state; no claim of media transport |
 | Lifecycle | Dependency loss/recovery, singleton refusal, preserved Inventory identity and references after driver recreation |
 
-Stop at the first failing layer and record sanitized evidence. This example's
-unperformed acceptance says nothing about API maturity. Replacing `DemoDevice`
-with a physical adapter additionally requires firmware/API, physical readback,
-device-loss behavior and media validation.
+Stop at the first failing layer and record sanitized evidence. Replacing
+`DemoDevice` with a physical adapter additionally requires firmware/API, physical
+readback, device-loss behavior and media validation.
