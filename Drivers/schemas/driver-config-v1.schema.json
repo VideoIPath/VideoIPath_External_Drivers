@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DriverHub deployment input declaration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "inputs"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type", "required"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+          "type": { "enum": ["string", "integer", "boolean"] },
+          "required": { "type": "boolean" },
+          "description": { "type": "string" },
+          "env": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "file": { "type": "string", "pattern": "^/(?!\\.{1,2}(/|$))[^/\\\\]+(?:/(?!\\.{1,2}(/|$))[^/\\\\]+)*$" },
+          "secret": { "type": "boolean" },
+          "default": {},
+          "minLength": { "type": "integer", "minimum": 0 },
+          "maxLength": { "type": "integer", "minimum": 0 },
+          "minimum": { "type": "integer" },
+          "maximum": { "type": "integer" }
+        },
+        "oneOf": [{ "required": ["env"] }, { "required": ["file"] }],
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "string" } } },
+            "then": { "properties": { "default": { "type": "string" }, "minimum": false, "maximum": false } }
+          },
+          {
+            "if": { "properties": { "type": { "const": "integer" } } },
+            "then": { "properties": { "default": { "type": "integer" }, "minLength": false, "maxLength": false } }
+          },
+          {
+            "if": { "properties": { "type": { "const": "boolean" } } },
+            "then": { "properties": { "default": { "type": "boolean" }, "minimum": false, "maximum": false, "minLength": false, "maxLength": false } }
+          },
+          {
+            "if": { "required": ["secret"], "properties": { "secret": { "const": true } } },
+            "then": { "properties": { "type": { "const": "string" }, "default": false } }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -83,6 +83,43 @@ fn complete_inventory_and_explicit_forwarding() {
 }
 
 #[test]
+fn driverhub_declares_every_application_input_once() {
+    let declaration: serde_json::Value =
+        serde_json::from_str(include_str!("../driver-config.json")).unwrap();
+    let mut expected: BTreeMap<_, _> = config::OPTIONS.iter().copied().collect();
+    let mut names = BTreeSet::new();
+    for input in declaration["inputs"].as_array().unwrap() {
+        assert!(names.insert(input["name"].as_str().unwrap()));
+        let binding = input["env"].as_str().unwrap();
+        let default = expected.remove(binding).expect("unique runtime binding");
+        let required = matches!(
+            binding,
+            "VIDEOIPATH_URL" | "VIDEOIPATH_TOKEN" | "VIDEOIPATH_NODE_ID"
+        );
+        assert_eq!(input["required"], required, "{binding}");
+        assert_eq!(
+            input["secret"].as_bool().unwrap_or(false),
+            binding == "VIDEOIPATH_TOKEN"
+        );
+        if let Ok(number) = default.parse::<u64>() {
+            assert_eq!(input["type"], "integer");
+            assert_eq!(input["default"], number, "{binding}");
+        } else {
+            assert_eq!(input["type"], "string");
+            assert_eq!(
+                input["default"].as_str().unwrap_or_default(),
+                default,
+                "{binding}"
+            );
+        }
+    }
+    assert!(
+        expected.is_empty(),
+        "missing DriverHub bindings: {expected:?}"
+    );
+}
+
+#[test]
 fn delivery_keeps_build_context_and_identity_boundaries() {
     // These are regression guards on security boundaries, not a substitute for image inspection.
     let dockerfile = include_str!("../Dockerfile");

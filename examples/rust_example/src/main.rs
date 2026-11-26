@@ -32,9 +32,19 @@ async fn main() -> ExitCode {
         }
         "help" | "--help" => {
             println!(
-                "rust-example: driver | health | status | --version\nAPI teaching example with in-memory state. Configuration: .env.example.\nOffline lessons: cargo run --locked --example api_walkthrough"
+                "rust-example: driver | check-config | health | status | --version\nAPI teaching example with in-memory state. Configuration: .env.example.\nOffline lessons: cargo run --locked --example api_walkthrough"
             );
             return ExitCode::SUCCESS;
+        }
+        "check-config" => {
+            // Use the same parser as startup, without claiming the node or connecting.
+            return match Config::environment(true) {
+                Ok(_) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("{error}");
+                    ExitCode::FAILURE
+                }
+            };
         }
         "health" | "status" => {
             // Local, bounded, side-effect-free; neither command needs credentials.

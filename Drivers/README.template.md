@@ -27,6 +27,13 @@ Explain how to build the driver and its container image locally from the files i
 
 Point to the Compose example in this directory. Document each relevant option, including connection addresses, authentication values, ports, volumes, and other device-specific settings. Explain how to provide secrets at deployment time without committing them to the repository. Show the commands needed to start the driver.
 
+## Running a packaged release (omit for source-only drivers)
+
+- Give the stable driver ID, release tag, supported host platforms, required runtime versions and the offline start command. Refer to the tested setup above.
+- Link to `driver-config.json`. Explain where the operator obtains each required input, including credential references, the VideoIPath address, and the stable `node_id` for this device. List any site-supplied files, mounts, permissions, ports and local services that must exist before startup. Use placeholders only.
+- Explain which settings and state must survive an upgrade or host replacement, how to back them up and restore them, and when a state or configuration change prevents downgrade. Identify version-specific steps in the bundled release notes.
+- Explain how to check process health, VideoIPath registration/approval and one documented device capability after deployment.
+
 ## Verification
 
 Describe how to confirm that the driver is connected and its documented capabilities work. Include any useful log messages or checks.

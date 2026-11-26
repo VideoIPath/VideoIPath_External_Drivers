@@ -58,6 +58,11 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 compose config --quiet >/dev/null 2>&1
 [ "$(compose config --services)" = driver ]
+compose run --rm --no-deps --pull never driver check-config
+if compose run --rm --no-deps --pull never -e DRIVER_REQUEST_TIMEOUT_MS=9000 driver check-config; then
+  echo 'invalid candidate settings unexpectedly passed preflight' >&2
+  exit 1
+fi
 compose up -d --wait --wait-timeout 30
 check_driver() {
   id=$(compose ps -q driver)

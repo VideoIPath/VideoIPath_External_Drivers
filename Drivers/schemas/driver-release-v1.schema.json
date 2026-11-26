@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DriverHub driver release v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "driverId", "displayName", "version", "source", "configuration", "image", "deploymentBundle"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "driverId": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "displayName": { "type": "string", "minLength": 1 },
+    "version": {
+      "type": "string",
+      "description": "Semantic Versioning 2.0.0, without the tag's leading v.",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "directory"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "directory": {
+          "type": "string",
+          "anyOf": [
+            { "pattern": "^Drivers/(?!\\.{1,2}/)[^/\\\\]+/(?!\\.{1,2}$)[^/\\\\]+$" },
+            { "const": "examples/rust_example" }
+          ]
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256"],
+      "properties": {
+        "file": { "const": "driver-config.json" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["digest", "platforms", "archive", "archiveSha256"],
+      "properties": {
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+/[a-z0-9_]+(/[a-z0-9._-]+)?$" }
+        },
+        "archive": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*\\.oci\\.tar\\.gz$" },
+        "archiveSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "deploymentBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256"],
+      "properties": {
+        "file": { "const": "deployment.tar.gz" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
