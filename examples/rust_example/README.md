@@ -27,7 +27,7 @@ The stable driver ID is `rust-example`. To build a local `linux/amd64` package f
 python3 scripts/package-driverhub.py /path/to/new/rust-example-package
 ```
 
-The output contains `driver-release.json`, the [input declaration](driver-config.json), the OCI image archive and `deployment.tar.gz`. Transfer all four files. Import a local build as a **customer build**. The [offline operator instructions](deployment/DRIVERHUB.md) ship inside the bundle; no checkout or registry is needed to run it. A public release follows the [repository's release and commissioning requirements](../../Drivers/RELEASING.md); packaging does not create a tag or publish anything.
+The output contains `driver-release.json`, the [input declaration](driver-config.json), the OCI image archive and `deployment.tar.gz`. Transfer all four files. Import a local build as a **customer build**. The [offline operator instructions](deployment/DRIVERHUB.md) ship inside the bundle; no checkout or registry is needed to run it. A public release follows the [repository's release guide](../../Drivers/RELEASING.md); packaging does not create a tag or publish anything.
 
 ## 1. Start with the capability you need
 

@@ -88,5 +88,4 @@ jobs:
             rust-example:${{ github.sha }} --version
       - name: Verify singleton Compose lifecycle without a live target
         run: sh scripts/runtime-smoke.sh rust-example:${{ github.sha }}
-      # Publication is intentionally absent. A future release job must promote the
-      # tested digest only after the required separate VideoIPath commissioning.
+      # Publication is separate from CI. Publish the tested digest.
