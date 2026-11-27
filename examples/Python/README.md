@@ -4,6 +4,8 @@ A Python reference implementation of a VideoIPath External Driver using WebSocke
 
 The external connects to a VideoIPath server, exposes a configurable device structure, responds to protocol requests, stores dynamic values in memory, validates incoming value updates, and automatically reconnects after a disconnection.
 
+This example is a protocol reference only. It has no Dockerfile and no `driver-config.json`, so Driver Hub cannot build, configure or deploy it. For what Driver Hub needs, see [Driver Hub compatibility](../../Drivers/RELEASING.md#driver-hub-compatibility).
+
 ## Features
 
 - WebSocket connection to a VideoIPath External Driver endpoint
