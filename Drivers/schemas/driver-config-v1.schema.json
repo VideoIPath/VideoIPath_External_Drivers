@@ -42,7 +42,7 @@
         "name": { "$ref": "#/$defs/inputName" },
         "type": { "enum": ["string", "integer", "boolean"] },
         "required": { "type": "boolean" },
-        "description": { "type": "string" },
+        "description": { "description": "Shown to operators as the input's hint.", "type": "string", "minLength": 1, "maxLength": 1000 },
         "env": { "type": "string", "pattern": "^(?!NOMAD_)[A-Za-z_][A-Za-z0-9_]*$" },
         "file": {
           "description": "Absolute container path, mounted read-only. No . or .. segments.",
