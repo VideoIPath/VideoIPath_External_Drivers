@@ -1,2 +1,5 @@
 # Local implementation plan and progress notes; not part of the public example.
 /examples/rust_example/PLAN.local.md
+
+# Python bytecode from the repository tools.
+__pycache__/

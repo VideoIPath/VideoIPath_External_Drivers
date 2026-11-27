@@ -26,7 +26,9 @@ Add your driver under `Drivers/<Vendor>/<Driver>/` and submit a pull request. In
 
 Contributed driver code must be distributable under this repository's [GNU GPL version 3 license](LICENSE). Only submit code you have the right to contribute on those terms. Identify any third-party code included in the driver and any external dependencies, along with their licenses; ensure you have the rights needed to distribute the included code under the repository's license.
 
-## Optional: publish a DriverHub-compatible release
+## Optional: support Driver Hub and publish a release
+
+Driver Hub can build, deploy and monitor a driver that meets its requirements. They are described in [Driver Hub compatibility](Drivers/RELEASING.md#driver-hub-compatibility), with a checklist. Pull requests show an informational report of whether Driver Hub could build and deploy each driver; it never blocks merging or releasing.
 
 To make a tested driver discoverable and installable by version, follow [Publishing a driver release](Drivers/RELEASING.md). Keep its `driver-config.json` input declaration beside the source and ask a repository publisher to release the tested image with its offline deployment files. Source-only contributions follow the usual pull request process and need no declaration, tag, or release.
 

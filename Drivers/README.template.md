@@ -34,6 +34,21 @@ Point to the Compose example in this directory. Document each relevant option, i
 - Explain which settings and state must survive an upgrade or host replacement, how to back them up and restore them, and when a state or configuration change prevents downgrade. Identify version-specific steps in the bundled release notes.
 - Explain how to check process health, VideoIPath registration/approval and one documented device capability after deployment.
 
+## Driver Hub (omit if not supported)
+
+State whether the driver meets the [Driver Hub checklist](https://github.com/VideoIPath/VideoIPath_External_Drivers/blob/main/Drivers/RELEASING.md#driver-hub-checklist), and list anything it does not meet. `python3 tools/validate-driver.py directory Drivers/<Vendor>/<Driver>` checks the parts that can be checked statically.
+
+- **Supported platforms:** `linux/amd64`, `linux/arm64`, or both. Driver Hub places the driver only on architectures its image contains.
+- **Inputs:** one row per input in `driver-config.json`. Under "Supplied by", say whether Driver Hub fills the input itself (`VIDEOIPATH_NODE_ID` always; `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` for a site-connected device) or the operator enters it. For a secret, the operator enters the name of a key in the device's Nomad Variable, never the value.
+
+  | Name | Type | Required | Binding | Secret | Default | Description | Supplied by |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | `<name>` | `string` | yes | `env: VIDEOIPATH_NODE_ID` | no | | <hint shown to operators> | Driver Hub |
+  | `<name>` | `string` | yes | `file: /run/secrets/<name>` | yes | | <hint> | Operator (Nomad Variable key) |
+
+- **Health endpoint:** the declared `controlHealth` port and path, and exactly when it answers 2xx (only while the VideoIPath session is authenticated and the device is reachable). If there is none, say so: Driver Hub then shows communication as not observable.
+- **Runtime:** anything the driver writes and where (no volume survives a restart), how it rebuilds state from VideoIPath and the device, and how long its shutdown takes after SIGTERM (Driver Hub kills it after 5 seconds).
+
 ## Verification
 
 Describe how to confirm that the driver is connected and its documented capabilities work. Include any useful log messages or checks.
