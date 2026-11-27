@@ -1,0 +1,171 @@
+{
+  "schema": "driver-config",
+  "description": "Each case applies a JSON Merge Patch (RFC 7386) to base. Arrays replace the base array. Invalid cases name the JSON Pointer where an error must be reported. Run: python3 tools/validate-driver.py fixtures",
+  "base": {
+    "schemaVersion": 1,
+    "inputs": [
+      {"name": "deviceHost", "type": "string", "required": true, "minLength": 1, "env": "DEVICE_HOST"},
+      {"name": "devicePort", "type": "integer", "required": false, "default": 443, "minimum": 1, "maximum": 65535, "env": "DEVICE_PORT"}
+    ]
+  },
+  "cases": [
+    {"rule": "top-level keys", "valid": true, "note": "base document"},
+    {"rule": "top-level keys", "valid": true, "note": "empty inputs", "patch": {"inputs": []}},
+    {"rule": "top-level keys", "valid": false, "at": "/", "patch": {"label": "Meter"}},
+    {"rule": "top-level keys", "valid": false, "at": "/", "note": "inputs is required", "patch": {"inputs": null}},
+
+    {"rule": "schemaVersion", "valid": true, "patch": {"schemaVersion": 1}},
+    {"rule": "schemaVersion", "valid": false, "at": "/schemaVersion", "patch": {"schemaVersion": 2}},
+
+    {"rule": "controlHealth", "valid": true, "patch": {"controlHealth": {"port": 8080, "path": "/control"}}},
+    {"rule": "controlHealth", "valid": true, "note": "root path and every allowed character", "patch": {"controlHealth": {"port": 65535, "path": "/"}}},
+    {"rule": "controlHealth", "valid": true, "patch": {"controlHealth": {"port": 1, "path": "/health/vip_session-1"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/port", "patch": {"controlHealth": {"port": 0, "path": "/control"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/port", "patch": {"controlHealth": {"port": 65536, "path": "/control"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/port", "patch": {"controlHealth": {"port": "8080", "path": "/control"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/path", "note": "must be absolute", "patch": {"controlHealth": {"port": 8080, "path": "control"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/path", "note": "no //", "patch": {"controlHealth": {"port": 8080, "path": "/a//b"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/path", "note": "no query", "patch": {"controlHealth": {"port": 8080, "path": "/control?x=1"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth/path", "note": "no dot", "patch": {"controlHealth": {"port": 8080, "path": "/control.json"}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth", "note": "path is required", "patch": {"controlHealth": {"port": 8080}}},
+    {"rule": "controlHealth", "valid": false, "at": "/controlHealth", "patch": {"controlHealth": {"port": 8080, "path": "/control", "scheme": "https"}}},
+
+    {"rule": "nodeIdInput", "valid": true, "patch": {"nodeIdInput": "uuid", "inputs": [{"name": "uuid", "type": "string", "required": true, "env": "DEVICE_UUID"}]}},
+    {"rule": "nodeIdInput", "valid": false, "at": "/nodeIdInput", "note": "unknown input", "patch": {"nodeIdInput": "uuid"}},
+    {"rule": "nodeIdInput", "valid": false, "at": "/nodeIdInput", "note": "name pattern", "patch": {"nodeIdInput": "1uuid"}},
+    {"rule": "nodeIdInput", "valid": false, "at": "/nodeIdInput", "note": "integer input", "patch": {"nodeIdInput": "devicePort"}},
+    {"rule": "nodeIdInput", "valid": false, "at": "/nodeIdInput", "note": "secret input", "patch": {"nodeIdInput": "uuid", "inputs": [{"name": "uuid", "type": "string", "required": true, "secret": true, "env": "DEVICE_UUID"}]}},
+    {"rule": "nodeIdInput", "valid": false, "at": "/nodeIdInput", "note": "input with a default", "patch": {"nodeIdInput": "uuid", "inputs": [{"name": "uuid", "type": "string", "required": false, "default": "x", "env": "DEVICE_UUID"}]}},
+
+    {"rule": "videoIPathInputs", "valid": true, "patch": {"videoIPathInputs": {"url": "endpoint", "token": "credential"}, "inputs": [
+      {"name": "endpoint", "type": "string", "required": true, "env": "VIP_ENDPOINT"},
+      {"name": "credential", "type": "string", "required": true, "secret": true, "file": "/run/secrets/vip-token"}]}},
+    {"rule": "videoIPathInputs", "valid": true, "note": "only one role, and an empty object", "patch": {"videoIPathInputs": {"url": "endpoint"}, "inputs": [
+      {"name": "endpoint", "type": "string", "required": true, "env": "VIP_ENDPOINT"}]}},
+    {"rule": "videoIPathInputs", "valid": true, "patch": {"videoIPathInputs": {}}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs", "patch": {"videoIPathInputs": {"nodeId": "deviceHost"}}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/url", "note": "unknown input", "patch": {"videoIPathInputs": {"url": "endpoint"}}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/url", "note": "url must be a string", "patch": {"videoIPathInputs": {"url": "devicePort"}}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/url", "note": "url must not be secret", "patch": {"videoIPathInputs": {"url": "endpoint"}, "inputs": [
+      {"name": "endpoint", "type": "string", "required": true, "secret": true, "env": "VIP_ENDPOINT"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/token", "note": "token must be secret", "patch": {"videoIPathInputs": {"token": "credential"}, "inputs": [
+      {"name": "credential", "type": "string", "required": true, "env": "VIP_CREDENTIAL"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/url", "note": "url must not be the node-ID input", "patch": {"nodeIdInput": "uuid", "videoIPathInputs": {"url": "uuid"}, "inputs": [
+      {"name": "uuid", "type": "string", "required": true, "env": "DEVICE_UUID"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/url", "note": "url bound to VIDEOIPATH_NODE_ID", "patch": {"videoIPathInputs": {"url": "endpoint"}, "inputs": [
+      {"name": "endpoint", "type": "string", "required": true, "env": "VIDEOIPATH_NODE_ID"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/url", "note": "url bound to the token's canonical variable", "patch": {"videoIPathInputs": {"url": "endpoint"}, "inputs": [
+      {"name": "endpoint", "type": "string", "required": true, "env": "VIDEOIPATH_TOKEN"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/videoIPathInputs/token", "note": "token bound to the url's canonical variable", "patch": {"videoIPathInputs": {"token": "credential"}, "inputs": [
+      {"name": "credential", "type": "string", "required": true, "secret": true, "env": "VIDEOIPATH_URL"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/inputs/1/env", "note": "another input bound to the url's canonical variable", "patch": {"videoIPathInputs": {"url": "endpoint"}, "inputs": [
+      {"name": "endpoint", "type": "string", "required": true, "env": "VIP_ENDPOINT"},
+      {"name": "legacyUrl", "type": "string", "required": false, "env": "VIDEOIPATH_URL"}]}},
+    {"rule": "videoIPathInputs", "valid": false, "at": "/inputs/1/env", "note": "another input bound to the token's canonical variable", "patch": {"videoIPathInputs": {"token": "credential"}, "inputs": [
+      {"name": "credential", "type": "string", "required": true, "secret": true, "file": "/run/secrets/vip-token"},
+      {"name": "legacyToken", "type": "string", "required": false, "secret": true, "env": "VIDEOIPATH_TOKEN"}]}},
+
+    {"rule": "input properties", "valid": true, "note": "description, maxLength and secret length bounds are supported (Driver Hub gap 1)", "patch": {"inputs": [
+      {"name": "deviceHost", "type": "string", "required": true, "minLength": 1, "maxLength": 253, "env": "DEVICE_HOST", "description": "Device address"},
+      {"name": "deviceKey", "type": "string", "required": true, "secret": true, "minLength": 1, "maxLength": 256, "env": "DEVICE_KEY"}]}},
+    {"rule": "input properties", "valid": false, "at": "/inputs/0", "note": "label is not a declaration property", "patch": {"inputs": [
+      {"name": "deviceHost", "type": "string", "required": true, "env": "DEVICE_HOST", "label": "Device address"}]}},
+    {"rule": "input properties", "valid": false, "at": "/inputs/0", "note": "enum is not a declaration property", "patch": {"inputs": [
+      {"name": "mode", "type": "string", "required": true, "env": "MODE", "enum": ["a", "b"]}]}},
+
+    {"rule": "input name", "valid": true, "patch": {"inputs": [{"name": "device.host-1_a", "type": "string", "required": true, "env": "DEVICE_HOST"}]}},
+    {"rule": "input name", "valid": false, "at": "/inputs/0/name", "patch": {"inputs": [{"name": "1device", "type": "string", "required": true, "env": "DEVICE_HOST"}]}},
+    {"rule": "input name", "valid": false, "at": "/inputs/0/name", "patch": {"inputs": [{"name": "_device", "type": "string", "required": true, "env": "DEVICE_HOST"}]}},
+    {"rule": "input name", "valid": false, "at": "/inputs/0/name", "patch": {"inputs": [{"name": "device host", "type": "string", "required": true, "env": "DEVICE_HOST"}]}},
+    {"rule": "input name", "valid": false, "at": "/inputs/0/name", "note": "ASCII only", "patch": {"inputs": [{"name": "devïce", "type": "string", "required": true, "env": "DEVICE_HOST"}]}},
+    {"rule": "input name", "valid": false, "at": "/inputs/0", "note": "name is required", "patch": {"inputs": [{"type": "string", "required": true, "env": "DEVICE_HOST"}]}},
+
+    {"rule": "unique names", "valid": true, "note": "names differ only in case", "patch": {"inputs": [
+      {"name": "host", "type": "string", "required": true, "env": "HOST_A"},
+      {"name": "Host", "type": "string", "required": true, "env": "HOST_B"}]}},
+    {"rule": "unique names", "valid": false, "at": "/inputs/1/name", "patch": {"inputs": [
+      {"name": "host", "type": "string", "required": true, "env": "HOST_A"},
+      {"name": "host", "type": "string", "required": true, "env": "HOST_B"}]}},
+
+    {"rule": "type", "valid": true, "patch": {"inputs": [{"name": "enabled", "type": "boolean", "required": false, "default": true, "env": "ENABLED"}]}},
+    {"rule": "type", "valid": false, "at": "/inputs/0/type", "patch": {"inputs": [{"name": "gain", "type": "number", "required": true, "env": "GAIN"}]}},
+    {"rule": "type", "valid": false, "at": "/inputs/0", "note": "type is required", "patch": {"inputs": [{"name": "gain", "required": true, "env": "GAIN"}]}},
+
+    {"rule": "required", "valid": true, "patch": {"inputs": [{"name": "host", "type": "string", "required": false, "env": "HOST"}]}},
+    {"rule": "required", "valid": false, "at": "/inputs/0", "patch": {"inputs": [{"name": "host", "type": "string", "env": "HOST"}]}},
+    {"rule": "required", "valid": false, "at": "/inputs/0/required", "patch": {"inputs": [{"name": "host", "type": "string", "required": "yes", "env": "HOST"}]}},
+
+    {"rule": "exactly one binding", "valid": true, "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "file": "/etc/driver/host"}]}},
+    {"rule": "exactly one binding", "valid": false, "at": "/inputs/0", "note": "both env and file", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "HOST", "file": "/etc/driver/host"}]}},
+    {"rule": "exactly one binding", "valid": false, "at": "/inputs/0", "note": "no binding", "patch": {"inputs": [{"name": "host", "type": "string", "required": true}]}},
+
+    {"rule": "env binding", "valid": true, "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "_Host_1"}]}},
+    {"rule": "env binding", "valid": true, "note": "only the NOMAD_ prefix is reserved", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "NOMADIC_HOST"}]}},
+    {"rule": "env binding", "valid": false, "at": "/inputs/0/env", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "NOMAD_X"}]}},
+    {"rule": "env binding", "valid": false, "at": "/inputs/0/env", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "1HOST"}]}},
+    {"rule": "env binding", "valid": false, "at": "/inputs/0/env", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "DEVICE-HOST"}]}},
+    {"rule": "env binding", "valid": false, "at": "/inputs/0/env", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": ""}]}},
+
+    {"rule": "file binding", "valid": true, "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "secret": true, "file": "/run/secrets/device-token"}]}},
+    {"rule": "file binding", "valid": true, "note": "dot files and ... are names, not . or ..", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/etc/driver/.token/..."}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "relative", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "run/secrets/token"}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "..", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/run/../token"}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": ".", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/run/./token"}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "trailing ..", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/run/.."}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "trailing slash", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/run/secrets/"}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "empty segment", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/run//token"}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "root", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/"}]}},
+    {"rule": "file binding", "valid": false, "at": "/inputs/0/file", "note": "space", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "file": "/run/my token"}]}},
+
+    {"rule": "unique bindings", "valid": true, "note": "same name as env and as file segment", "patch": {"inputs": [
+      {"name": "a", "type": "string", "required": true, "env": "TOKEN"},
+      {"name": "b", "type": "string", "required": true, "file": "/run/TOKEN"}]}},
+    {"rule": "unique bindings", "valid": false, "at": "/inputs/1/env", "patch": {"inputs": [
+      {"name": "a", "type": "string", "required": true, "env": "TOKEN"},
+      {"name": "b", "type": "string", "required": true, "env": "TOKEN"}]}},
+    {"rule": "unique bindings", "valid": false, "at": "/inputs/1/file", "patch": {"inputs": [
+      {"name": "a", "type": "string", "required": true, "file": "/run/token"},
+      {"name": "b", "type": "string", "required": true, "file": "/run/token"}]}},
+
+    {"rule": "secret", "valid": true, "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "secret": true, "env": "TOKEN"}]}},
+    {"rule": "secret", "valid": true, "note": "secret false may have a default", "patch": {"inputs": [{"name": "user", "type": "string", "required": false, "secret": false, "default": "admin", "env": "USER_NAME"}]}},
+    {"rule": "secret", "valid": false, "at": "/inputs/0/type", "note": "strings only", "patch": {"inputs": [{"name": "pin", "type": "integer", "required": true, "secret": true, "env": "PIN"}]}},
+    {"rule": "secret", "valid": false, "at": "/inputs/0/default", "note": "never a default", "patch": {"inputs": [{"name": "token", "type": "string", "required": false, "secret": true, "default": "x", "env": "TOKEN"}]}},
+    {"rule": "secret", "valid": false, "at": "/inputs/0/secret", "patch": {"inputs": [{"name": "token", "type": "string", "required": true, "secret": "yes", "env": "TOKEN"}]}},
+
+    {"rule": "default type", "valid": true, "patch": {"inputs": [
+      {"name": "a", "type": "string", "required": false, "default": "", "env": "A"},
+      {"name": "b", "type": "integer", "required": false, "default": -1, "env": "B"},
+      {"name": "c", "type": "boolean", "required": false, "default": false, "env": "C"}]}},
+    {"rule": "default type", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "port", "type": "integer", "required": false, "default": "443", "env": "PORT"}]}},
+    {"rule": "default type", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "port", "type": "integer", "required": false, "default": 1.5, "env": "PORT"}]}},
+    {"rule": "default type", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "host", "type": "string", "required": false, "default": 5, "env": "HOST"}]}},
+    {"rule": "default type", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "on", "type": "boolean", "required": false, "default": "true", "env": "ON"}]}},
+    {"rule": "default type", "valid": false, "at": "/inputs/0/default", "note": "null is not an input value", "patch": {"inputs": [{"name": "host", "type": "string", "required": false, "default": null, "env": "HOST"}]}},
+
+    {"rule": "default within bounds", "valid": true, "note": "defaults on the bounds", "patch": {"inputs": [
+      {"name": "port", "type": "integer", "required": false, "default": 1, "minimum": 1, "maximum": 1, "env": "PORT"},
+      {"name": "host", "type": "string", "required": false, "default": "ab", "minLength": 2, "maxLength": 2, "env": "HOST"}]}},
+    {"rule": "default within bounds", "valid": true, "note": "length counts code points, not bytes", "patch": {"inputs": [
+      {"name": "host", "type": "string", "required": false, "default": "ææ", "maxLength": 2, "env": "HOST"}]}},
+    {"rule": "default within bounds", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "port", "type": "integer", "required": false, "default": 0, "minimum": 1, "env": "PORT"}]}},
+    {"rule": "default within bounds", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "port", "type": "integer", "required": false, "default": 70000, "maximum": 65535, "env": "PORT"}]}},
+    {"rule": "default within bounds", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "host", "type": "string", "required": false, "default": "", "minLength": 1, "env": "HOST"}]}},
+    {"rule": "default within bounds", "valid": false, "at": "/inputs/0/default", "patch": {"inputs": [{"name": "host", "type": "string", "required": false, "default": "abc", "maxLength": 2, "env": "HOST"}]}},
+
+    {"rule": "integer bounds", "valid": true, "patch": {"inputs": [{"name": "port", "type": "integer", "required": true, "minimum": -5, "maximum": -5, "env": "PORT"}]}},
+    {"rule": "integer bounds", "valid": false, "at": "/inputs/0/minimum", "note": "integers only", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "minimum": 1, "env": "HOST"}]}},
+    {"rule": "integer bounds", "valid": false, "at": "/inputs/0/maximum", "note": "integers only", "patch": {"inputs": [{"name": "on", "type": "boolean", "required": true, "maximum": 1, "env": "ON"}]}},
+    {"rule": "integer bounds", "valid": false, "at": "/inputs/0/minimum", "patch": {"inputs": [{"name": "port", "type": "integer", "required": true, "minimum": 1.5, "env": "PORT"}]}},
+    {"rule": "integer bounds", "valid": false, "at": "/inputs/0", "note": "minimum above maximum", "patch": {"inputs": [{"name": "port", "type": "integer", "required": true, "minimum": 10, "maximum": 9, "env": "PORT"}]}},
+
+    {"rule": "length bounds", "valid": true, "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "minLength": 0, "maxLength": 0, "env": "HOST"}]}},
+    {"rule": "length bounds", "valid": false, "at": "/inputs/0/minLength", "note": "strings only", "patch": {"inputs": [{"name": "port", "type": "integer", "required": true, "minLength": 1, "env": "PORT"}]}},
+    {"rule": "length bounds", "valid": false, "at": "/inputs/0/maxLength", "note": "strings only", "patch": {"inputs": [{"name": "on", "type": "boolean", "required": true, "maxLength": 1, "env": "ON"}]}},
+    {"rule": "length bounds", "valid": false, "at": "/inputs/0/minLength", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "minLength": -1, "env": "HOST"}]}},
+    {"rule": "length bounds", "valid": false, "at": "/inputs/0", "note": "minLength above maxLength", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "minLength": 3, "maxLength": 2, "env": "HOST"}]}},
+
+    {"rule": "description", "valid": true, "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "HOST", "description": "Shown to operators"}]}},
+    {"rule": "description", "valid": false, "at": "/inputs/0/description", "patch": {"inputs": [{"name": "host", "type": "string", "required": true, "env": "HOST", "description": 5}]}}
+  ]
+}

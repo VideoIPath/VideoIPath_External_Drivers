@@ -1,0 +1,83 @@
+{
+  "schema": "driver-release",
+  "description": "Each case applies a JSON Merge Patch (RFC 7386) to base; tag, when present, is checked against the record. Asset hashes and OCI contents are verified by 'validate-driver.py release' on real assets. Run: python3 tools/validate-driver.py fixtures",
+  "base": {
+    "schemaVersion": 1,
+    "driverId": "exampleco-meter",
+    "displayName": "ExampleCo Meter",
+    "version": "1.4.0",
+    "source": {"commit": "0123456789abcdef0123456789abcdef01234567", "directory": "Drivers/ExampleCo/Meter"},
+    "configuration": {"file": "driver-config.json", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+    "image": {
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "platforms": ["linux/amd64"],
+      "archive": "exampleco-meter-1.4.0.oci.tar.gz",
+      "archiveSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "deploymentBundle": {"file": "deployment.tar.gz", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}
+  },
+  "cases": [
+    {"rule": "identity", "valid": true, "note": "base record"},
+    {"rule": "identity", "valid": false, "at": "/schemaVersion", "patch": {"schemaVersion": 2}},
+    {"rule": "identity", "valid": false, "at": "/driverId", "patch": {"driverId": "ExampleCo-Meter"}},
+    {"rule": "identity", "valid": false, "at": "/driverId", "patch": {"driverId": "exampleco--meter"}},
+    {"rule": "identity", "valid": false, "at": "/", "note": "unknown top-level field", "patch": {"notes": "x"}},
+
+    {"rule": "tag", "valid": true, "tag": "drivers/exampleco-meter/v1.4.0"},
+    {"rule": "tag", "valid": true, "tag": "drivers/exampleco-meter/v1.5.0-rc.1+build.7", "patch": {"version": "1.5.0-rc.1+build.7"}},
+    {"rule": "tag", "valid": false, "at": "/driverId", "tag": "drivers/exampleco-other/v1.4.0"},
+    {"rule": "tag", "valid": false, "at": "/version", "tag": "drivers/exampleco-meter/v1.4.1"},
+    {"rule": "tag", "valid": false, "at": "/", "note": "leading v inside the version", "tag": "drivers/exampleco-meter/vv1.4.0"},
+    {"rule": "tag", "valid": false, "at": "/", "note": "leading zero", "tag": "drivers/exampleco-meter/v01.4.0", "patch": {"version": "01.4.0"}},
+    {"rule": "tag", "valid": false, "at": "/", "note": "wrong prefix", "tag": "driver/exampleco-meter/v1.4.0"},
+
+    {"rule": "version", "valid": true, "patch": {"version": "0.0.0-rc.1"}},
+    {"rule": "version", "valid": true, "note": "local is reserved only as 0.0.0-local.", "patch": {"version": "1.0.0-local.1"}},
+    {"rule": "version", "valid": false, "at": "/version", "patch": {"version": "v1.4.0"}},
+    {"rule": "version", "valid": false, "at": "/version", "patch": {"version": "1.4"}},
+    {"rule": "version", "valid": false, "at": "/version", "patch": {"version": "1.04.0"}},
+    {"rule": "version", "valid": false, "at": "/version", "note": "reserved for Driver Hub's local builds", "patch": {"version": "0.0.0-local.5f0c2d8e-7a7b-4f3f-9c55-2c0c6f2b1f10"}},
+
+    {"rule": "displayName", "valid": true, "patch": {"displayName": "M"}},
+    {"rule": "displayName", "valid": false, "at": "/displayName", "patch": {"displayName": ""}},
+    {"rule": "displayName", "valid": false, "at": "/", "patch": {"displayName": null}},
+
+    {"rule": "origin", "valid": true, "patch": {"origin": "maintainer"}},
+    {"rule": "origin", "valid": false, "at": "/origin", "patch": {"origin": "customer"}},
+
+    {"rule": "source", "valid": true, "patch": {"source": {"directory": "examples/rust_example"}}},
+    {"rule": "source", "valid": true, "patch": {"source": {"directory": "Drivers/Example_Co/Meter.v2"}}},
+    {"rule": "source", "valid": false, "at": "/source/commit", "patch": {"source": {"commit": "0123456789ABCDEF0123456789ABCDEF01234567"}}},
+    {"rule": "source", "valid": false, "at": "/source/commit", "patch": {"source": {"commit": "0123456"}}},
+    {"rule": "source", "valid": false, "at": "/source/directory", "patch": {"source": {"directory": ""}}},
+    {"rule": "source", "valid": false, "at": "/source/directory", "note": "not buildable by Driver Hub", "patch": {"source": {"directory": "Drivers/Example Co/Meter"}}},
+    {"rule": "source", "valid": false, "at": "/source/directory", "patch": {"source": {"directory": "Drivers/../Meter"}}},
+    {"rule": "source", "valid": false, "at": "/source/directory", "note": "segment may not start with a dot", "patch": {"source": {"directory": "Drivers/.hidden/Meter"}}},
+    {"rule": "source", "valid": false, "at": "/source/directory", "note": "only the Rust example is released from examples/", "patch": {"source": {"directory": "examples/Python"}}},
+
+    {"rule": "configuration", "valid": true, "patch": {"configuration": {"sha256": "0000000000000000000000000000000000000000000000000000000000000000"}}},
+    {"rule": "configuration", "valid": false, "at": "/configuration/file", "patch": {"configuration": {"file": "config.json"}}},
+    {"rule": "configuration", "valid": false, "at": "/configuration/sha256", "patch": {"configuration": {"sha256": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"}}},
+
+    {"rule": "image digest", "valid": true, "patch": {"image": {"digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"}}},
+    {"rule": "image digest", "valid": false, "at": "/image/digest", "patch": {"image": {"digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}},
+    {"rule": "image digest", "valid": false, "at": "/image/digest", "patch": {"image": {"digest": "sha512:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}},
+
+    {"rule": "image archive", "valid": true, "patch": {"image": {"archive": "Example_Co-meter-1.4.0.oci.tar.gz"}}},
+    {"rule": "image archive", "valid": false, "at": "/image/archive", "note": "+ is outside Driver Hub's asset-name pattern", "patch": {"image": {"archive": "meter-1.4.0+build.oci.tar.gz"}}},
+    {"rule": "image archive", "valid": false, "at": "/image/archive", "patch": {"image": {"archive": "meter.tar"}}},
+    {"rule": "image archive", "valid": false, "at": "/image/archive", "patch": {"image": {"archive": "images/meter.oci.tar.gz"}}},
+    {"rule": "image archive", "valid": false, "at": "/image/archiveSha256", "patch": {"image": {"archiveSha256": "b"}}},
+
+    {"rule": "image platforms", "valid": true, "patch": {"image": {"platforms": ["linux/amd64", "linux/arm64"]}}},
+    {"rule": "image platforms", "valid": false, "at": "/image/platforms", "patch": {"image": {"platforms": []}}},
+    {"rule": "image platforms", "valid": false, "at": "/image/platforms", "patch": {"image": {"platforms": ["linux/amd64", "linux/amd64"]}}},
+    {"rule": "image platforms", "valid": false, "at": "/image/platforms/0", "note": "Driver Hub runs linux/<arch> only", "patch": {"image": {"platforms": ["windows/amd64"]}}},
+    {"rule": "image platforms", "valid": false, "at": "/image/platforms/0", "note": "variants are not runnable by Driver Hub", "patch": {"image": {"platforms": ["linux/arm/v7"]}}},
+    {"rule": "image platforms", "valid": false, "at": "/image/platforms/0", "patch": {"image": {"platforms": ["linux/AMD64"]}}},
+
+    {"rule": "deploymentBundle", "valid": true, "note": "repository convention, ignored by Driver Hub", "patch": {"deploymentBundle": {"sha256": "0000000000000000000000000000000000000000000000000000000000000000"}}},
+    {"rule": "deploymentBundle", "valid": false, "at": "/deploymentBundle/file", "patch": {"deploymentBundle": {"file": "bundle.tgz"}}},
+    {"rule": "deploymentBundle", "valid": false, "at": "/", "patch": {"deploymentBundle": null}}
+  ]
+}

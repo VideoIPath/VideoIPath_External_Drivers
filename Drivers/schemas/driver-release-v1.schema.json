@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "DriverHub driver release v1",
+  "title": "Driver Hub driver release v1",
+  "description": "driver-release.json. Cross-file rules (tag, asset hashes, OCI contents) are checked by tools/validate-driver.py. deploymentBundle is a repository convention that Driver Hub ignores. See Drivers/RELEASING.md#driver-hub-compatibility.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "driverId", "displayName", "version", "source", "configuration", "image", "deploymentBundle"],
@@ -10,9 +11,11 @@
     "displayName": { "type": "string", "minLength": 1 },
     "version": {
       "type": "string",
-      "description": "Semantic Versioning 2.0.0, without the tag's leading v.",
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+      "description": "Semantic Versioning 2.0.0, without the tag's leading v. 0.0.0-local.* is reserved for Driver Hub's own builds.",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "not": { "pattern": "^0\\.0\\.0-local\\." }
     },
+    "origin": { "const": "maintainer" },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -20,9 +23,10 @@
       "properties": {
         "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "directory": {
+          "description": "Stricter than Driver Hub on purpose: contributed drivers live in Drivers/<Vendor>/<Driver>; the only released example is examples/rust_example.",
           "type": "string",
           "anyOf": [
-            { "pattern": "^Drivers/(?!\\.{1,2}/)[^/\\\\]+/(?!\\.{1,2}$)[^/\\\\]+$" },
+            { "pattern": "^Drivers/[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*$" },
             { "const": "examples/rust_example" }
           ]
         }
@@ -44,12 +48,13 @@
       "properties": {
         "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
         "platforms": {
+          "description": "Platforms Driver Hub can run: linux/<arch>, in practice linux/amd64 and linux/arm64.",
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "type": "string", "pattern": "^[a-z0-9]+/[a-z0-9_]+(/[a-z0-9._-]+)?$" }
+          "items": { "type": "string", "pattern": "^linux/[a-z0-9]+$" }
         },
-        "archive": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*\\.oci\\.tar\\.gz$" },
+        "archive": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+\\.oci\\.tar\\.gz$" },
         "archiveSha256": { "$ref": "#/$defs/sha256" }
       }
     },

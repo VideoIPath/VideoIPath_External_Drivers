@@ -1,0 +1,30 @@
+name: Drivers
+on:
+  push:
+    paths: ['Drivers/**', 'examples/**/driver-config.json', 'tools/**', '.github/workflows/drivers.yml']
+  pull_request:
+    paths: ['Drivers/**', 'examples/**/driver-config.json', 'tools/**', '.github/workflows/drivers.yml']
+  workflow_dispatch:
+
+# Fork contributions can validate drivers but cannot publish packages or access secrets.
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Driver Hub contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the schema validator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-jsonschema
+      - name: Schema fixtures (one valid and one invalid case per rule)
+        run: /usr/bin/python3 tools/validate-driver.py fixtures
+      - name: Release and OCI checks
+        run: /usr/bin/python3 -m unittest discover -s tools/tests
+      - name: Every committed declaration
+        run: git ls-files -z -- 'Drivers/**/driver-config.json' 'examples/**/driver-config.json' | xargs -0 -r /usr/bin/python3 tools/validate-driver.py config

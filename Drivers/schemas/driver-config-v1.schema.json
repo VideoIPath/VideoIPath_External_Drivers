@@ -1,51 +1,80 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "DriverHub deployment input declaration v1",
+  "title": "Driver Hub deployment input declaration v1",
+  "description": "Structural rules of driver-config.json. Cross-field rules (unique names and bindings, defaults within bounds, nodeIdInput and videoIPathInputs references, VIDEOIPATH_* roles) are checked by tools/validate-driver.py. See Drivers/RELEASING.md#driver-hub-compatibility.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "inputs"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "inputs": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["name", "type", "required"],
-        "properties": {
-          "name": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
-          "type": { "enum": ["string", "integer", "boolean"] },
-          "required": { "type": "boolean" },
-          "description": { "type": "string" },
-          "env": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-          "file": { "type": "string", "pattern": "^/(?!\\.{1,2}(/|$))[^/\\\\]+(?:/(?!\\.{1,2}(/|$))[^/\\\\]+)*$" },
-          "secret": { "type": "boolean" },
-          "default": {},
-          "minLength": { "type": "integer", "minimum": 0 },
-          "maxLength": { "type": "integer", "minimum": 0 },
-          "minimum": { "type": "integer" },
-          "maximum": { "type": "integer" }
-        },
-        "oneOf": [{ "required": ["env"] }, { "required": ["file"] }],
-        "allOf": [
-          {
-            "if": { "properties": { "type": { "const": "string" } } },
-            "then": { "properties": { "default": { "type": "string" }, "minimum": false, "maximum": false } }
-          },
-          {
-            "if": { "properties": { "type": { "const": "integer" } } },
-            "then": { "properties": { "default": { "type": "integer" }, "minLength": false, "maxLength": false } }
-          },
-          {
-            "if": { "properties": { "type": { "const": "boolean" } } },
-            "then": { "properties": { "default": { "type": "boolean" }, "minimum": false, "maximum": false, "minLength": false, "maxLength": false } }
-          },
-          {
-            "if": { "required": ["secret"], "properties": { "secret": { "const": true } } },
-            "then": { "properties": { "type": { "const": "string" }, "default": false } }
-          }
-        ]
+    "inputs": { "type": "array", "items": { "$ref": "#/$defs/input" } },
+    "controlHealth": {
+      "description": "HTTP endpoint Driver Hub polls as the driver-communication check. 2xx means the authenticated VideoIPath session is established.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "path"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "path": { "type": "string", "pattern": "^(?!.*//)/[A-Za-z0-9_/-]*$" }
       }
+    },
+    "nodeIdInput": {
+      "description": "Input that carries the node ID when it is not bound to VIDEOIPATH_NODE_ID. Must name a non-secret string input without a default.",
+      "$ref": "#/$defs/inputName"
+    },
+    "videoIPathInputs": {
+      "description": "Inputs that carry the VideoIPath endpoint and token when they are not bound to VIDEOIPATH_URL and VIDEOIPATH_TOKEN.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": { "$ref": "#/$defs/inputName" },
+        "token": { "$ref": "#/$defs/inputName" }
+      }
+    }
+  },
+  "$defs": {
+    "inputName": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$" },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "required"],
+      "properties": {
+        "name": { "$ref": "#/$defs/inputName" },
+        "type": { "enum": ["string", "integer", "boolean"] },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" },
+        "env": { "type": "string", "pattern": "^(?!NOMAD_)[A-Za-z_][A-Za-z0-9_]*$" },
+        "file": {
+          "description": "Absolute container path, mounted read-only. No . or .. segments.",
+          "type": "string",
+          "pattern": "^(?!(?:.*/)?\\.{1,2}(?:/|$))/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+$"
+        },
+        "secret": { "type": "boolean" },
+        "default": {},
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "minimum": { "type": "integer" },
+        "maximum": { "type": "integer" }
+      },
+      "oneOf": [{ "required": ["env"] }, { "required": ["file"] }],
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "string" } } },
+          "then": { "properties": { "default": { "type": "string" }, "minimum": false, "maximum": false } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "integer" } } },
+          "then": { "properties": { "default": { "type": "integer" }, "minLength": false, "maxLength": false } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "boolean" } } },
+          "then": { "properties": { "default": { "type": "boolean" }, "minimum": false, "maximum": false, "minLength": false, "maxLength": false } }
+        },
+        {
+          "if": { "required": ["secret"], "properties": { "secret": { "const": true } } },
+          "then": { "properties": { "type": { "const": "string" }, "default": false } }
+        }
+      ]
     }
   }
 }
