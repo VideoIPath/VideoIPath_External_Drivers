@@ -1,6 +1,6 @@
 {
   "schema": "driver-config",
-  "description": "schemaVersion 2 (proposed) declarations. Each case applies a JSON Merge Patch (RFC 7386) to base; arrays replace the base array. Invalid cases name the JSON Pointer where an error must be reported. Value rules are in driver-config-values.cases.json. Run: python3 tools/validate-driver.py fixtures",
+  "description": "schemaVersion 2 declarations. Each case applies a JSON Merge Patch (RFC 7386) to base; arrays replace the base array. Invalid cases name the JSON Pointer where an error must be reported. Value rules are in driver-config-values.cases.json. Run: python3 tools/validate-driver.py fixtures",
   "base": {
     "schemaVersion": 2,
     "inputs": [

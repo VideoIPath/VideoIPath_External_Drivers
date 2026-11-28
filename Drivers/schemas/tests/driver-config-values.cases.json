@@ -1,6 +1,6 @@
 {
   "schema": "driver-config-values",
-  "description": "Effective values checked against schemaVersion 2 (proposed) declarations, as Driver Hub must check every value before deployment or token reservation, whether the operator, a site profile or a default supplied it. Each case names an input, a value and the reason codes it must produce, as a set; [] means accepted. Inputs are named after nothing in particular: the same rules apply whatever an input is called. Secret inputs are never checked, so none appear here. Run: python3 tools/validate-driver.py fixtures",
+  "description": "Effective values checked against schemaVersion 2 declarations, as Driver Hub must check every value before deployment or token reservation, whether the operator, a site profile or a default supplied it. Each case names an input, a value and the reason codes it must produce, as a set; [] means accepted. Inputs are named after nothing in particular: the same rules apply whatever an input is called. Secret inputs are never checked, so none appear here. Run: python3 tools/validate-driver.py fixtures",
   "reasons": {
     "wrong_type": "the value is not of the input's type",
     "too_short": "shorter than minLength (Unicode code points)",
