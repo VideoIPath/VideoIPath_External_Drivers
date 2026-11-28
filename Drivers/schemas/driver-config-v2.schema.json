@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Driver Hub deployment input declaration v2 (proposed)",
-  "description": "Structural rules of driver-config.json schemaVersion 2: v1 plus the per-input value constraints url and enum. Proposed: no Driver Hub release reads it yet. Cross-field rules (those of v1, enum choices within the length bounds, defaults that satisfy enum and url) and the value rules are checked by tools/validate-driver.py. See Drivers/RELEASING.md#declaration-schemaversion-2-proposed.",
+  "title": "Driver Hub deployment input declaration v2",
+  "description": "Structural rules of driver-config.json schemaVersion 2: v1 plus the per-input value constraints url and enum. Driver Hub releases older than version 2 support refuse it. Cross-field rules (those of v1, enum choices within the length bounds, defaults that satisfy enum and url) and the value rules are checked by tools/validate-driver.py. See Drivers/RELEASING.md#declaration-schemaversion-2.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "inputs"],

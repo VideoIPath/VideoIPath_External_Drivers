@@ -40,10 +40,11 @@ OCI_INDEX = "application/vnd.oci.image.index.v1+json"
 NODE_ID_ENV = "VIDEOIPATH_NODE_ID"
 ROLE_ENV = {"url": "VIDEOIPATH_URL", "token": "VIDEOIPATH_TOKEN"}
 
-# Declaration versions this repository validates, and those released Driver Hub versions
-# read. Version 2 is proposed (Drivers/RELEASING.md#declaration-schemaversion-2-proposed).
+# Declaration versions this repository validates, and those current Driver Hub releases
+# read. Older Driver Hub releases read only version 1
+# (Drivers/RELEASING.md#declaration-schemaversion-2).
 CONFIG_VERSIONS = (1, 2)
-HUB_READS = (1,)
+HUB_READS = (1, 2)
 
 
 class ContractError(Exception):
