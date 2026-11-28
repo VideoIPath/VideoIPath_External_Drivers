@@ -6,7 +6,7 @@
   validate-driver.py release <dir> [--tag T]                driver-release.json, every asset and the OCI archive
   validate-driver.py fixtures                               run Drivers/schemas/tests/*.cases.json
 
-driver-config.json may use schemaVersion 1 or the proposed schemaVersion 2; each is
+driver-config.json may use schemaVersion 1 or 2; each is
 validated against its own schema.
 
 Needs Python 3.11+ and jsonschema. Exits 1 and prints "<JSON Pointer>: <problem>" lines
@@ -24,7 +24,7 @@ import driverhub_contract as contract
 
 FIXTURES = contract.SCHEMAS / "tests"
 CHECKLIST = "Drivers/RELEASING.md#driver-hub-checklist"
-V2_STATUS = "Drivers/RELEASING.md#declaration-schemaversion-2-proposed"
+V2_STATUS = "Drivers/RELEASING.md#declaration-schemaversion-2"
 
 
 def driver_directories():
@@ -65,6 +65,9 @@ def directory_findings(directory):
             if not errors and version not in contract.HUB_READS:
                 problems.append(("driver-config.json", f"/schemaVersion: version {version} is valid here, but no Driver Hub "
                                                        f"release reads it yet, so Driver Hub refuses the declaration ({V2_STATUS})"))
+            if not errors and version in contract.HUB_READS and version != 1:
+                notes.append(("driver-config.json", f"schemaVersion {version} needs a current Driver Hub; "
+                                                    f"older releases refuse it ({V2_STATUS})"))
             if not errors and "controlHealth" not in document:
                 notes.append(("driver-config.json", "no controlHealth, so Driver Hub shows communication as not observable"))
     return relative, problems, notes

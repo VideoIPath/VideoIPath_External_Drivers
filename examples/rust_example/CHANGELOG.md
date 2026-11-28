@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Prepare 0.4.0: `driver-config.json` uses the proposed schemaVersion 2 to declare what the configuration parser already enforces. `videoipathUrl` accepts only `wss://<host>/x-driver/v1` without credentials, query or fragment; `logLevel` and `configurationOrder` accept only their listed words. Runtime behavior is unchanged. `tests/declared-values.json` checks the declaration against the parser and lists the rules the declaration cannot express.
+- Prepare 0.4.0: `driver-config.json` uses schemaVersion 2 to declare what the configuration parser already enforces. `videoipathUrl` accepts only `wss://<host>/x-driver/v1` without credentials, query or fragment; `logLevel` and `configurationOrder` accept only their listed words. Runtime behavior is unchanged. `tests/declared-values.json` checks the declaration against the parser and lists the rules the declaration cannot express.
 
 ### Migrating from 0.3 to 0.4
 

@@ -184,7 +184,7 @@ Driver Hub ignores `deploymentBundle`; it is this repository's convention for ma
 
 ### Declaration (`driver-config.json`)
 
-The top level has `schemaVersion` 1, `inputs` (an array), and optionally `controlHealth`, `nodeIdInput` and `videoIPathInputs`. Driver Hub refuses anything else. Each input:
+The top level has `schemaVersion` 1 (or [2](#declaration-schemaversion-2), below), `inputs` (an array), and optionally `controlHealth`, `nodeIdInput` and `videoIPathInputs`. Driver Hub refuses anything else. Each input:
 
 | Field | Rule |
 | --- | --- |
@@ -198,12 +198,12 @@ The top level has `schemaVersion` 1, `inputs` (an array), and optionally `contro
 | `minLength`, `maxLength` | Optional. Strings only, integers ≥ 0, `minLength` ≤ `maxLength`. Driver Hub enforces them on non-secret values and reports a value that is too long as `too_long`. On secrets they are accepted but not applied. |
 | `description` | Optional. A non-empty string of at most 1,000 characters, shown to operators as the input's hint. |
 
-Any other input property, such as `label` or `enum`, is refused. A proposed [`schemaVersion` 2](#declaration-schemaversion-2-proposed) adds `url` and `enum`; keep publishing version 1 until Driver Hub reads it.
+In version 1, any other input property, such as `label` or `enum`, is refused. [`schemaVersion` 2](#declaration-schemaversion-2) adds `url` and `enum`.
 
 **Inputs Driver Hub supplies.** Operators cannot override these:
 
 - `VIDEOIPATH_NODE_ID` is always set to the device's stable, lowercase, non-nil UUID, whether or not the driver declares it.
-- `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` are filled from the site when the device takes its VideoIPath target from the site, which is the default. The URL is the site's VideoIPath endpoint, normally the complete `wss://<host>/x-driver/v1`; the token is reserved for the device from a pool. With a version 1 declaration Driver Hub cannot tell which URLs the driver accepts, so a site or operator URL the driver rejects is only found when the container exits. If the driver does not declare these inputs, Driver Hub adds them. For a manually connected device, the operator enters both.
+- `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` are filled from the site when the device takes its VideoIPath target from the site, which is the default. The URL is the site's VideoIPath endpoint, normally the complete `wss://<host>/x-driver/v1`; the token is reserved for the device from a pool. With a version 1 declaration Driver Hub cannot tell which URLs the driver accepts, so a site or operator URL the driver rejects is only found when the container exits. Declare `url` in [version 2](#declaration-schemaversion-2) so Driver Hub refuses such a URL before deployment. If the driver does not declare these inputs, Driver Hub adds them. For a manually connected device, the operator enters both.
 
 The simplest driver reads exactly these three variables. If the image reads them under other names or from files, say so:
 
@@ -212,9 +212,9 @@ The simplest driver reads exactly these three variables. If the image reads them
 
 **Secrets.** For a `secret` input the operator never enters the value. They enter the name of a key (`^[A-Za-z_][A-Za-z0-9_]{0,127}$`) in the Nomad Variable `nomad/jobs/driverhub-<node UUID>`. Nomad renders the value into the declared environment variable or read-only file when the task starts. Read secrets from that variable or file at start-up, and never log them.
 
-### Declaration `schemaVersion` 2 (proposed)
+### Declaration `schemaVersion` 2
 
-> **Status: proposed. No Driver Hub release reads version 2 yet, and current releases refuse it**, both in a published release and when building from source. Do not publish a version 2 declaration, or commit one as a driver's `driver-config.json`, until Driver Hub announces support. Then publish it as a **new** driver version: never change the assets of an existing one. The names, rules and reason codes below are a proposal to the Driver Hub maintainers; the [shared fixtures](schemas/tests/) are what both sides agree on.
+> **Driver Hub reads version 2. Older Driver Hub releases refuse it**, both in a published release and when building from source. If sites you support may still run an older Driver Hub, keep a version 1 release available for them. Move a driver to version 2 only in a **new** driver version: never change the assets of an existing one. The [shared fixtures](schemas/tests/) define the rules and reason codes that this repository and Driver Hub both apply; change them only together.
 
 Version 1 can say that an input is a non-empty string, but not that the driver accepts only `wss://` URLs, or only five log levels. Version 2 lets a driver declare those rules for one input at a time, so Driver Hub can check each value before deployment and before reserving a token, whether the value came from the operator, the site or a default. It is [version 1](#declaration-driver-configjson) with `"schemaVersion": 2` and two more input properties:
 
@@ -237,7 +237,7 @@ A URL value is accepted only in canonical form, the form a URL parser reads with
 4. The path is compared with `path` character for character: case-sensitive, with no percent-decoding and no resolution of `.` or `..`. An empty path is not `/`. Declare `path` in the same form: starting with `/`, no dot segments (also not `%2E`), and percent-escapes in uppercase hex.
 5. A `?` or `#` is present even when nothing follows it.
 
-A value that is not canonical gets `url_invalid` and no other URL reason. Otherwise every rule it breaks is reported: `url_scheme`, `url_credentials`, `url_path`, `url_query`, `url_fragment`. These, `not_in_enum`, `too_short`, `too_long`, `below_minimum`, `above_maximum` and `wrong_type` are the proposed reason codes for operator messages; the [value fixtures](schemas/tests/driver-config-values.cases.json) define each one. The host is not looked up or compared with anything.
+A value that is not canonical gets `url_invalid` and no other URL reason. Otherwise every rule it breaks is reported: `url_scheme`, `url_credentials`, `url_path`, `url_query`, `url_fragment`. These, `not_in_enum`, `too_short`, `too_long`, `below_minimum`, `above_maximum` and `wrong_type` are the reason codes Driver Hub reports to operators; the [value fixtures](schemas/tests/driver-config-values.cases.json) define each one. The host is not looked up or compared with anything.
 
 A VideoIPath registration URL is the **base** URL, without a query. The driver adds its own stable `node_id` when it opens the socket, so declare `"allowQuery": false` for it.
 
@@ -343,5 +343,5 @@ A driver is fully supported by Driver Hub when all of these hold. `python3 tools
 - [ ] SIGTERM and SIGINT close the VideoIPath session and release the device, and the process exits well within 5 seconds, also when it runs as PID 1.
 - [ ] Recommended: `controlHealth` is declared. The endpoint answers plain HTTP `GET` on all interfaces within 2 seconds, and answers 2xx only while the VideoIPath session is authenticated and the device is reachable. It needs no authentication, exposes no secrets and issues no device commands.
 - [ ] A new version keeps input names and bindings, and adds new inputs as optional with defaults where possible.
-- [ ] Once Driver Hub reads [`schemaVersion` 2](#declaration-schemaversion-2-proposed): every string input that accepts only some URLs or some words declares `url` or `enum`, and `tests/declared-values.json` shows that the declaration agrees with the parser.
+- [ ] Every string input that accepts only some URLs or some words declares `url` or `enum` ([`schemaVersion` 2](#declaration-schemaversion-2)), and `tests/declared-values.json` shows that the declaration agrees with the parser.
 - [ ] For a release: the tag is `drivers/<driverId>/v<version>`, all four assets are on the same release, which is created as a draft first, and `python3 tools/validate-driver.py release <assets-directory> --tag <tag>` passes.
