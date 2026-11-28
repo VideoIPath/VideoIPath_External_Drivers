@@ -198,12 +198,12 @@ The top level has `schemaVersion` 1, `inputs` (an array), and optionally `contro
 | `minLength`, `maxLength` | Optional. Strings only, integers ≥ 0, `minLength` ≤ `maxLength`. Driver Hub enforces them on non-secret values and reports a value that is too long as `too_long`. On secrets they are accepted but not applied. |
 | `description` | Optional. A non-empty string of at most 1,000 characters, shown to operators as the input's hint. |
 
-Any other input property, such as `label` or `enum`, is refused.
+Any other input property, such as `label` or `enum`, is refused. A proposed [`schemaVersion` 2](#declaration-schemaversion-2-proposed) adds `url` and `enum`; keep publishing version 1 until Driver Hub reads it.
 
 **Inputs Driver Hub supplies.** Operators cannot override these:
 
 - `VIDEOIPATH_NODE_ID` is always set to the device's stable, lowercase, non-nil UUID, whether or not the driver declares it.
-- `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` are filled from the site when the device takes its VideoIPath target from the site, which is the default. The URL is the complete `wss://<host>/x-driver/v1`; the token is reserved for the device from a pool. If the driver does not declare these inputs, Driver Hub adds them. For a manually connected device, the operator enters both.
+- `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` are filled from the site when the device takes its VideoIPath target from the site, which is the default. The URL is the site's VideoIPath endpoint, normally the complete `wss://<host>/x-driver/v1`; the token is reserved for the device from a pool. With a version 1 declaration Driver Hub cannot tell which URLs the driver accepts, so a site or operator URL the driver rejects is only found when the container exits. If the driver does not declare these inputs, Driver Hub adds them. For a manually connected device, the operator enters both.
 
 The simplest driver reads exactly these three variables. If the image reads them under other names or from files, say so:
 
@@ -211,6 +211,84 @@ The simplest driver reads exactly these three variables. If the image reads them
 - `videoIPathInputs` is `{"url": "<input name>", "token": "<input name>"}`; either key is optional. `url` must name a non-secret string input and `token` a secret string input. Neither may be the node-ID input, nor bound to `VIDEOIPATH_NODE_ID` or to the other role's variable. No other input may be bound to that role's variable (`VIDEOIPATH_URL` or `VIDEOIPATH_TOKEN`).
 
 **Secrets.** For a `secret` input the operator never enters the value. They enter the name of a key (`^[A-Za-z_][A-Za-z0-9_]{0,127}$`) in the Nomad Variable `nomad/jobs/driverhub-<node UUID>`. Nomad renders the value into the declared environment variable or read-only file when the task starts. Read secrets from that variable or file at start-up, and never log them.
+
+### Declaration `schemaVersion` 2 (proposed)
+
+> **Status: proposed. No Driver Hub release reads version 2 yet, and current releases refuse it**, both in a published release and when building from source. Do not publish a version 2 declaration, or commit one as a driver's `driver-config.json`, until Driver Hub announces support. Then publish it as a **new** driver version: never change the assets of an existing one. The names, rules and reason codes below are a proposal to the Driver Hub maintainers; the [shared fixtures](schemas/tests/) are what both sides agree on.
+
+Version 1 can say that an input is a non-empty string, but not that the driver accepts only `wss://` URLs, or only five log levels. Version 2 lets a driver declare those rules for one input at a time, so Driver Hub can check each value before deployment and before reserving a token, whether the value came from the operator, the site or a default. It is [version 1](#declaration-driver-configjson) with `"schemaVersion": 2` and two more input properties:
+
+| Field | Rule |
+| --- | --- |
+| `url` | Optional. Non-secret `string` inputs only. The value must be an absolute URL in [canonical form](#url-values) that meets these keys:<br>`schemes` (required): a non-empty list of distinct lowercase schemes, such as `["wss"]`.<br>`path` (optional): the exact path, such as `/x-driver/v1`. Omit it to accept any path.<br>`allowCredentials`, `allowQuery`, `allowFragment` (all required booleans): whether the value may contain userinfo (`user@`), a `?` or a `#`. There are no implied defaults. |
+| `enum` | Optional. Non-secret `string` inputs only. A non-empty list of distinct, non-empty strings. The value must equal one of them exactly: case-sensitive, never trimmed. |
+
+An input has `url` or `enum`, not both. Each `enum` choice must be within `minLength` and `maxLength`, and a `default` must satisfy `enum` and `url` as well as the bounds. Unknown keys (including misspellings such as `shemes`) and unknown schema versions are refused.
+
+**Missing means not declared.** An input without `url` or `enum` is unconstrained as far as Driver Hub knows: that does not mean every scheme, or plain-text connections, are supported. Driver Hub does not infer rules from input names or descriptions, and the same rules apply to every input whatever it is called. Declare what the driver's own configuration parser accepts, input by input: a VideoIPath backend URL and a device URL in the same driver can accept different schemes.
+
+#### URL values
+
+A URL value is accepted only in canonical form, the form a URL parser reads without repairing anything. The rules fit in a few lines of any language, and a value they accept is read the same way by WHATWG URL parsers such as Rust's `url` crate, so a driver never sees a different URL than Driver Hub checked:
+
+1. Printable ASCII (`!` to `~`) only, with no `\`. Spaces, tabs, line breaks and non-ASCII characters are refused; write an internationalized host name as `xn--` labels.
+2. `<scheme>://<authority><path>[?<query>][#<fragment>]`. The scheme starts with a letter and is compared with `schemes` case-insensitively.
+3. The authority is `[<userinfo>@]<host>[:<port>]`. Any `@` counts as userinfo, even with nothing before it. The host is a name made of `A-Z a-z 0-9 . _ ~ -`, a dotted-quad IPv4 address, or a bracketed IPv6 address without a zone. A host whose last label is a number must be a valid dotted quad. The port, if present, is 0 to 65535.
+4. The path is compared with `path` character for character: case-sensitive, with no percent-decoding and no resolution of `.` or `..`. An empty path is not `/`. Declare `path` in the same form: starting with `/`, no dot segments (also not `%2E`), and percent-escapes in uppercase hex.
+5. A `?` or `#` is present even when nothing follows it.
+
+A value that is not canonical gets `url_invalid` and no other URL reason. Otherwise every rule it breaks is reported: `url_scheme`, `url_credentials`, `url_path`, `url_query`, `url_fragment`. These, `not_in_enum`, `too_short`, `too_long`, `below_minimum`, `above_maximum` and `wrong_type` are the proposed reason codes for operator messages; the [value fixtures](schemas/tests/driver-config-values.cases.json) define each one. The host is not looked up or compared with anything.
+
+A VideoIPath registration URL is the **base** URL, without a query. The driver adds its own stable `node_id` when it opens the socket, so declare `"allowQuery": false` for it.
+
+#### Examples
+
+A backend URL that must be `wss://<host>/x-driver/v1`:
+
+```json
+{"name": "videoipathUrl", "type": "string", "required": true, "env": "VIDEOIPATH_URL",
+ "description": "VideoIPath registration endpoint, wss://<host>/x-driver/v1. The driver adds node_id itself.",
+ "url": {"schemes": ["wss"], "path": "/x-driver/v1", "allowCredentials": false, "allowQuery": false, "allowFragment": false}}
+```
+
+A device URL for a driver that genuinely supports both encrypted and plain-text device connections, and was tested with both. List both schemes only when that is true:
+
+```json
+{"name": "deviceUrl", "type": "string", "required": true, "env": "DEVICE_URL",
+ "description": "Device control endpoint. ws:// only on an isolated control network.",
+ "url": {"schemes": ["wss", "ws"], "path": "/api", "allowCredentials": false, "allowQuery": false, "allowFragment": false}}
+```
+
+An enumerated setting:
+
+```json
+{"name": "logLevel", "type": "string", "required": false, "default": "info", "env": "DRIVER_LOG_LEVEL",
+ "enum": ["trace", "debug", "info", "warn", "error"]}
+```
+
+#### Driver requirement or site prerequisite
+
+Declare only what the driver itself requires of a value: something its parser checks, which is true at every site. Whether a value works at a particular site is a **site prerequisite**. Document it in the driver's README, and do not encode it in the declaration:
+
+| Driver requirement: declare it | Site prerequisite: document it |
+| --- | --- |
+| The scheme is `wss` | The host name resolves in the site's DNS |
+| The path is `/x-driver/v1` | The site trusts the CA that signed the server's certificate (for example, through a CA-bundle input) |
+| No credentials, query or fragment | A listener is reachable on that host and port from the Nomad clients |
+| The log level is one of five words | The firewall allows the outbound connection |
+
+A site policy, such as "plain text only on an isolated network", is not a driver requirement either. If the driver accepts `ws://`, declare it, and put the policy in the input's `description` and the README.
+
+#### Prove the declaration against the parser
+
+A declaration is only useful if it matches the parser. Add `tests/declared-values.json` to the driver directory: cases that each name an input, a value, whether the declaration accepts it (`declared`) and whether the driver's configuration parser accepts it (`parser`), with every other input valid. `python3 -m unittest discover -s tools/tests` checks the `declared` verdicts against `driver-config.json`. Add a test to the driver's own suite that runs every case through its real configuration parser and checks `parser`. Every input with `url` or `enum` needs at least one accepted and one rejected value. The verdicts may differ in two ways only:
+
+- `declared` false and `parser` true, with a `note`: the declaration is stricter, for example because it requires canonical form.
+- `declared` true and `parser` false, with `undeclared` naming the rule: the parser checks something version 2 cannot express, such as a relation between two inputs. List every such rule, so the gap is visible to reviewers and to Driver Hub's maintainers.
+
+[tools/tests/test_declared_values.py](../tools/tests/test_declared_values.py) shows the file format.
+
+**Who checks what.** This repository checks that declarations are well formed and truthful, and ties each one to an immutable release by its SHA-256. Driver Hub reads version 1 and version 2, validates effective values before deployment or token reservation, shows the messages, and decides what to do about undeclared capabilities.
 
 ### Runtime
 
@@ -265,4 +343,5 @@ A driver is fully supported by Driver Hub when all of these hold. `python3 tools
 - [ ] SIGTERM and SIGINT close the VideoIPath session and release the device, and the process exits well within 5 seconds, also when it runs as PID 1.
 - [ ] Recommended: `controlHealth` is declared. The endpoint answers plain HTTP `GET` on all interfaces within 2 seconds, and answers 2xx only while the VideoIPath session is authenticated and the device is reachable. It needs no authentication, exposes no secrets and issues no device commands.
 - [ ] A new version keeps input names and bindings, and adds new inputs as optional with defaults where possible.
+- [ ] Once Driver Hub reads [`schemaVersion` 2](#declaration-schemaversion-2-proposed): every string input that accepts only some URLs or some words declares `url` or `enum`, and `tests/declared-values.json` shows that the declaration agrees with the parser.
 - [ ] For a release: the tag is `drivers/<driverId>/v<version>`, all four assets are on the same release, which is created as a draft first, and `python3 tools/validate-driver.py release <assets-directory> --tag <tag>` passes.

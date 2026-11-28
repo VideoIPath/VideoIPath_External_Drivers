@@ -15,7 +15,9 @@
     {"rule": "top-level keys", "valid": false, "at": "/", "note": "inputs is required", "patch": {"inputs": null}},
 
     {"rule": "schemaVersion", "valid": true, "patch": {"schemaVersion": 1}},
-    {"rule": "schemaVersion", "valid": false, "at": "/schemaVersion", "patch": {"schemaVersion": 2}},
+    {"rule": "schemaVersion", "valid": false, "at": "/schemaVersion", "note": "unknown version", "patch": {"schemaVersion": 3}},
+    {"rule": "schemaVersion", "valid": false, "at": "/schemaVersion", "note": "a boolean is not a version", "patch": {"schemaVersion": true}},
+    {"rule": "schemaVersion", "valid": false, "at": "/", "note": "schemaVersion is required", "patch": {"schemaVersion": null}},
 
     {"rule": "controlHealth", "valid": true, "patch": {"controlHealth": {"port": 8080, "path": "/control"}}},
     {"rule": "controlHealth", "valid": true, "note": "root path and every allowed character", "patch": {"controlHealth": {"port": 65535, "path": "/"}}},

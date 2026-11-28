@@ -1,9 +1,9 @@
 name: Drivers
 on:
   push:
-    paths: ['Drivers/**', 'examples/**/driver-config.json', 'examples/**/Dockerfile', 'tools/**', '.github/workflows/drivers.yml']
+    paths: ['Drivers/**', 'examples/**/driver-config.json', 'examples/**/tests/declared-values.json', 'examples/**/Dockerfile', 'tools/**', '.github/workflows/drivers.yml']
   pull_request:
-    paths: ['Drivers/**', 'examples/**/driver-config.json', 'examples/**/Dockerfile', 'tools/**', '.github/workflows/drivers.yml']
+    paths: ['Drivers/**', 'examples/**/driver-config.json', 'examples/**/tests/declared-values.json', 'examples/**/Dockerfile', 'tools/**', '.github/workflows/drivers.yml']
   workflow_dispatch:
 
 # Fork contributions can validate drivers but cannot publish packages or access secrets.

@@ -1,9 +1,9 @@
 name: Rust example
 on:
   push:
-    paths: ['examples/rust_example/**', 'Drivers/schemas/**', '.github/workflows/rust-example.yml']
+    paths: ['examples/rust_example/**', 'Drivers/schemas/**', 'tools/**', '.github/workflows/rust-example.yml']
   pull_request:
-    paths: ['examples/rust_example/**', 'Drivers/schemas/**', '.github/workflows/rust-example.yml']
+    paths: ['examples/rust_example/**', 'Drivers/schemas/**', 'tools/**', '.github/workflows/rust-example.yml']
   workflow_dispatch:
 
 # Fork contributions can validate the example but cannot publish packages or access secrets.
@@ -54,23 +54,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Package the DriverHub candidate from this revision
-        run: |
-          docker buildx create --driver docker-container --use
-          python3 scripts/package-driverhub.py "$RUNNER_TEMP/driverhub"
-      - name: Validate both v1 records and import the packaged image for testing
+      - name: Install the contract validator and image tools
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo python3-jsonschema
-          /usr/bin/python3 - "$RUNNER_TEMP/driverhub" <<'PY'
-          import json, sys
-          from pathlib import Path
-          from jsonschema import Draft202012Validator
-          for name in ("driver-release", "driver-config"):
-              schema = json.loads(Path(f"../../Drivers/schemas/{name}-v1.schema.json").read_text())
-              record = json.loads((Path(sys.argv[1]) / f"{name}.json").read_text())
-              Draft202012Validator(schema).validate(record)
-          PY
+      - name: Package the DriverHub candidate from this revision
+        # The packager validates the declaration by its own schemaVersion before building
+        # and verifies every asset before writing the output directory.
+        run: |
+          docker buildx create --driver docker-container --use
+          /usr/bin/python3 scripts/package-driverhub.py "$RUNNER_TEMP/driverhub"
+      - name: Verify the release assets independently and import the packaged image for testing
+        run: |
+          /usr/bin/python3 ../../tools/validate-driver.py release "$RUNNER_TEMP/driverhub"
           gzip -dc "$RUNNER_TEMP"/driverhub/*.oci.tar.gz > "$RUNNER_TEMP/driverhub-image.tar"
           skopeo copy "oci-archive:$RUNNER_TEMP/driverhub-image.tar" "docker-daemon:rust-example:${{ github.sha }}"
       - name: Save candidate for an unprivileged offline-image scan
