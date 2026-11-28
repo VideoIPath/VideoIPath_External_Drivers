@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Prepare 0.4.0: `driver-config.json` uses the proposed schemaVersion 2 to declare what the configuration parser already enforces. `videoipathUrl` accepts only `wss://<host>/x-driver/v1` without credentials, query or fragment; `logLevel` and `configurationOrder` accept only their listed words. Runtime behavior is unchanged. `tests/declared-values.json` checks the declaration against the parser and lists the rules the declaration cannot express.
+
+### Migrating from 0.3 to 0.4
+
+Nothing changes for manual Compose installations. A Driver Hub release that does not read schemaVersion 2 refuses the 0.4 package and source builds of this directory; keep using 0.3.0 with it. Input names, bindings and defaults are unchanged, so values saved for 0.3.0 carry over, but a value 0.3.0 accepted at deployment and then refused at start-up (such as a `ws://` URL) is now refused before deployment.
+
 - Add DriverHub v1 packaging and offline configuration preflight for the Rust teaching example. The stable ID is `rust-example`; packaging does not change the node UUID, demo state, or commissioning status.
 - Make 0.3.0 a single-process API example with DemoDevice, one-service Compose, and an opt-in device lab instead of an embedded simulator platform.
 - Add a credential-free API walkthrough and deterministic in-memory demo tests for values, alarms, SDP, and configuration drift.
