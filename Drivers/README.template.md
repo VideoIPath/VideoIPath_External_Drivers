@@ -39,12 +39,16 @@ Point to the Compose example in this directory. Document each relevant option, i
 State whether the driver meets the [Driver Hub checklist](https://github.com/VideoIPath/VideoIPath_External_Drivers/blob/main/Drivers/RELEASING.md#driver-hub-checklist), and list anything it does not meet. `python3 tools/validate-driver.py directory Drivers/<Vendor>/<Driver>` checks the parts that can be checked statically.
 
 - **Supported platforms:** `linux/amd64`, `linux/arm64`, or both. Driver Hub places the driver only on architectures its image contains.
-- **Inputs:** one row per input in `driver-config.json`. Under "Supplied by", say whether Driver Hub fills the input itself (`VIDEOIPATH_NODE_ID` always; `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` for a site-connected device) or the operator enters it. For a secret, the operator enters the name of a key in the device's Nomad Variable, never the value.
+- **Inputs:** one row per input in `driver-config.json`. Under "Supplied by", say whether Driver Hub fills the input itself (`VIDEOIPATH_NODE_ID` always; `VIDEOIPATH_URL` and `VIDEOIPATH_TOKEN` for a site-connected device) or the operator enters it. For a secret, the operator enters the name of a key in the device's Nomad Variable, never the value. Under "Accepted values", give what the driver's parser accepts: the URL schemes and path, the enumerated choices, or the bounds. Once Driver Hub reads [`schemaVersion` 2](https://github.com/VideoIPath/VideoIPath_External_Drivers/blob/main/Drivers/RELEASING.md#declaration-schemaversion-2-proposed), declare the same rules as `url` or `enum`. Declare only schemes the driver genuinely supports and you have tested.
 
-  | Name | Type | Required | Binding | Secret | Default | Description | Supplied by |
-  | --- | --- | --- | --- | --- | --- | --- | --- |
-  | `<name>` | `string` | yes | `env: VIDEOIPATH_NODE_ID` | no | | <hint shown to operators> | Driver Hub |
-  | `<name>` | `string` | yes | `file: /run/secrets/<name>` | yes | | <hint> | Operator (Nomad Variable key) |
+  | Name | Type | Required | Binding | Secret | Default | Accepted values | Description | Supplied by |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | `<name>` | `string` | yes | `env: VIDEOIPATH_URL` | no | | `wss` only, path `/x-driver/v1`, no credentials, query or fragment | <hint shown to operators> | Driver Hub (site) or operator |
+  | `<name>` | `string` | yes | `env: VIDEOIPATH_NODE_ID` | no | | | <hint> | Driver Hub |
+  | `<name>` | `string` | yes | `file: /run/secrets/<name>` | yes | | | <hint> | Operator (Nomad Variable key) |
+  | `<name>` | `string` | no | `env: <NAME>` | no | `info` | one of `trace`, `debug`, `info`, `warn`, `error` | <hint> | Operator |
+
+- **Site prerequisites:** what must be true at the site for valid values to work, and which the declaration cannot check: DNS names that must resolve, the CA that must be trusted (and how to supply it), listeners that must be reachable from the Nomad clients, firewall openings. Keep these apart from the accepted values above: a value can be valid and still fail at a site that lacks a prerequisite.
 
 - **Health endpoint:** the declared `controlHealth` port and path, and exactly when it answers 2xx (only while the VideoIPath session is authenticated and the device is reachable). If there is none, say so: Driver Hub then shows communication as not observable.
 - **Runtime:** anything the driver writes and where (no volume survives a restart), how it rebuilds state from VideoIPath and the device, and how long its shutdown takes after SIGTERM (Driver Hub kills it after 5 seconds).

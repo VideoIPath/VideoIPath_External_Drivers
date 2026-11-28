@@ -1,4 +1,9 @@
-"""Build the four DriverHub assets from HEAD, without tagging or publishing anything."""
+"""Build the four DriverHub assets from HEAD, without tagging or publishing anything.
+
+The declaration is validated (by its own schemaVersion) before the image is built, and
+the finished assets are verified as Driver Hub would before the output directory appears.
+Needs Python 3.11+, jsonschema, git and docker buildx.
+"""
 
 import argparse
 import gzip
@@ -7,6 +12,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import tomllib
@@ -16,6 +22,19 @@ from distribution import add_bytes, add_distribution
 SOURCE = "examples/rust_example"
 ROOT = Path(__file__).resolve().parents[3]
 PLATFORM = "linux/amd64"
+
+sys.path.insert(0, str(ROOT / "tools"))
+import driverhub_contract as contract  # noqa: E402
+
+
+def enforce(label, check, *args):
+    """Run a contract check; on failure name every problem and stop without output."""
+    try:
+        return check(*args)
+    except contract.ContractError as error:
+        for at, message in error.errors:
+            print(f"{label}#{at}: {message}", file=sys.stderr)
+        sys.exit(f"not packaged: {label} does not meet the Driver Hub contract")
 
 
 def git(*args):
@@ -60,6 +79,8 @@ def build(output):
     version = tomllib.loads(git("show", f"{driver}/Cargo.toml").decode())["package"]["version"]
     if output.exists():
         raise FileExistsError(f"choose a new output directory: {output}")
+    # Fail before the (slow) image build. These exact bytes are shipped and hashed below.
+    enforce("driver-config.json", contract.check_config, json.loads(declaration))
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as temp:
         scratch = Path(temp)
@@ -107,6 +128,8 @@ def build(output):
             "deploymentBundle": {"file": bundle.name, "sha256": checksum(bundle)},
         }
         (assets / "driver-release.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        # Every checksum, the declaration and the OCI layout, as Driver Hub checks them.
+        enforce("release assets", contract.verify_release_directory, assets)
         assets.rename(output)
 
 

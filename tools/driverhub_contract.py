@@ -1,4 +1,4 @@
-"""Driver Hub contract checks shared by validate-driver.py and package-driver.py.
+"""Driver Hub contract checks shared by validate-driver.py and the release packagers.
 
 The JSON Schemas in Drivers/schemas hold every structural rule. This module adds the
 rules JSON Schema cannot express, and verifies release assets and OCI archives.
@@ -7,6 +7,7 @@ Drivers/RELEASING.md#driver-hub-compatibility describes the contract in prose.
 
 import gzip
 import hashlib
+import ipaddress
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -39,6 +40,11 @@ OCI_INDEX = "application/vnd.oci.image.index.v1+json"
 NODE_ID_ENV = "VIDEOIPATH_NODE_ID"
 ROLE_ENV = {"url": "VIDEOIPATH_URL", "token": "VIDEOIPATH_TOKEN"}
 
+# Declaration versions this repository validates, and those released Driver Hub versions
+# read. Version 2 is proposed (Drivers/RELEASING.md#declaration-schemaversion-2-proposed).
+CONFIG_VERSIONS = (1, 2)
+HUB_READS = (1,)
+
 
 class ContractError(Exception):
     """One or more contract violations, each as (JSON Pointer, message)."""
@@ -48,12 +54,12 @@ class ContractError(Exception):
         super().__init__("\n".join(f"{at}: {message}" for at, message in errors))
 
 
-def _validator(name):
+def _validator(name, version=1):
     try:
         from jsonschema import Draft202012Validator
     except ImportError as error:  # pragma: no cover - depends on the host
         raise SystemExit("install jsonschema (python3-jsonschema or pip install jsonschema)") from error
-    schema = json.loads((SCHEMAS / f"{name}-v1.schema.json").read_text(encoding="utf-8"))
+    schema = json.loads((SCHEMAS / f"{name}-v{version}.schema.json").read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
@@ -90,8 +96,8 @@ def _location(error, schema, document):
     return pointer(*path)
 
 
-def schema_errors(name, document):
-    validator = _validator(name)
+def schema_errors(name, document, version=1):
+    validator = _validator(name, version)
     errors = [(_location(error, validator.schema, document), error.message)
               for error in validator.iter_errors(document)]
     return sorted(errors)
@@ -101,9 +107,20 @@ def _is_int(value):
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def config_version(document):
+    """The declaration's schemaVersion if this repository can validate it, else None."""
+    version = document.get("schemaVersion") if isinstance(document, dict) else None
+    return version if _is_int(version) and version in CONFIG_VERSIONS else None
+
+
 def config_errors(document):
-    """All violations of driver-config.json, structural first."""
-    errors = schema_errors("driver-config", document)
+    """All violations of driver-config.json, structural first. The schema is chosen by
+    the declaration's own schemaVersion; an unknown version is reported as such."""
+    version = config_version(document)
+    if version is None and isinstance(document, dict) and "schemaVersion" in document:
+        supported = " and ".join(str(v) for v in CONFIG_VERSIONS)
+        return [("/schemaVersion", f"unsupported schemaVersion; this validator reads {supported}")]
+    errors = schema_errors("driver-config", document, version or 1)
     if errors:
         # Cross-field rules assume the structure is valid; report structure first.
         return errors
@@ -139,6 +156,17 @@ def config_errors(document):
                     errors.append((pointer(*at, "default"), "default is shorter than minLength"))
                 if "maxLength" in item and len(default) > item["maxLength"]:
                     errors.append((pointer(*at, "default"), "default is longer than maxLength"))
+                if "enum" in item and default not in item["enum"]:
+                    errors.append((pointer(*at, "default"), "default is not one of enum"))
+                if "url" in item:
+                    reasons = url_errors(item["url"], default)
+                    if reasons:
+                        errors.append((pointer(*at, "default"), f"default does not satisfy url ({', '.join(reasons)})"))
+        for choice_index, choice in enumerate(item.get("enum", [])):
+            if "minLength" in item and len(choice) < item["minLength"]:
+                errors.append((pointer(*at, "enum", choice_index), "choice is shorter than minLength"))
+            if "maxLength" in item and len(choice) > item["maxLength"]:
+                errors.append((pointer(*at, "enum", choice_index), "choice is longer than maxLength"))
 
     def env_of(item):
         return item.get("env")
@@ -176,6 +204,93 @@ def config_errors(document):
             if candidate["name"] != name and env_of(candidate) == canonical:
                 errors.append((pointer("inputs", index, "env"), f"{canonical} is reserved for the input named by videoIPathInputs.{role}"))
     return errors
+
+
+# Value rules. Driver Hub must apply the same rules to every effective value (operator
+# entry, site profile or default) before it deploys or reserves a token. The reason codes
+# below are shared with Driver Hub through Drivers/schemas/tests/driver-config-values.cases.json.
+
+_URL = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*)://([^/?#]*)([^?#]*)(\?[^#]*)?(#.*)?", re.DOTALL)
+_HOST_PORT = re.compile(r"(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9._~-]+)(?::([0-9]{1,5}))?")
+_DOTTED_QUAD = re.compile(r"(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}")
+_NUMERIC_LABEL = re.compile(r"(?:[0-9]+|0[xX][0-9A-Fa-f]*)")
+
+
+def _host_ok(host):
+    if host.startswith("["):
+        try:
+            ipaddress.IPv6Address(host[1:-1])
+        except ValueError:
+            return False
+        return True
+    # WHATWG parsers read a host whose last label is numeric as IPv4 and reject it unless
+    # it is a valid address; accept only the unambiguous dotted-quad form.
+    last = host.rstrip(".").rsplit(".", 1)[-1]
+    if _NUMERIC_LABEL.fullmatch(last):
+        return bool(_DOTTED_QUAD.fullmatch(host))
+    return True
+
+
+def url_errors(constraint, value):
+    """Reasons a string value violates a url constraint, as a sorted list of codes.
+
+    The value must already be in canonical form: printable ASCII without '\\', and
+    scheme "://" authority path ["?" query] ["#" fragment]. Anything a WHATWG URL parser
+    would repair or normalize (whitespace, missing slashes, dot segments) is rejected,
+    so a value accepted here is never read differently by the driver.
+    """
+    if not isinstance(value, str) or any(not 0x21 <= ord(c) <= 0x7E or c == "\\" for c in value):
+        return ["url_invalid"]
+    match = _URL.fullmatch(value)
+    if not match:
+        return ["url_invalid"]
+    scheme, authority, path, query, fragment = match.groups()
+    userinfo, at, host_port = authority.rpartition("@")
+    host = _HOST_PORT.fullmatch(host_port)
+    if not host or not _host_ok(host.group(1)) or (host.group(2) and int(host.group(2)) > 65535):
+        return ["url_invalid"]
+    reasons = []
+    if scheme.lower() not in constraint["schemes"]:
+        reasons.append("url_scheme")
+    if at and not constraint["allowCredentials"]:
+        reasons.append("url_credentials")
+    if "path" in constraint and path != constraint["path"]:
+        reasons.append("url_path")
+    if query is not None and not constraint["allowQuery"]:
+        reasons.append("url_query")
+    if fragment is not None and not constraint["allowFragment"]:
+        reasons.append("url_fragment")
+    return sorted(reasons)
+
+
+def value_errors(item, value):
+    """Reasons an effective value violates its input's declaration, as a sorted list of
+    codes. Secrets are not checked: Driver Hub never sees their values."""
+    if item.get("secret", False):
+        return []
+    kind = item["type"]
+    if kind == "string":
+        if not isinstance(value, str):
+            return ["wrong_type"]
+        reasons = []
+        if "minLength" in item and len(value) < item["minLength"]:
+            reasons.append("too_short")
+        if "maxLength" in item and len(value) > item["maxLength"]:
+            reasons.append("too_long")
+        if "enum" in item and value not in item["enum"]:
+            reasons.append("not_in_enum")
+        if "url" in item:
+            reasons += url_errors(item["url"], value)
+        return sorted(reasons)
+    if kind == "integer":
+        if not _is_int(value):
+            return ["wrong_type"]
+        if "minimum" in item and value < item["minimum"]:
+            return ["below_minimum"]
+        if "maximum" in item and value > item["maximum"]:
+            return ["above_maximum"]
+        return []
+    return [] if isinstance(value, bool) else ["wrong_type"]
 
 
 def check_config(document):
@@ -348,3 +463,44 @@ def merge_patch(target, patch):
         else:
             result[key] = merge_patch(result.get(key), value)
     return result
+
+
+def declared_values_errors(path):
+    """Check a driver's tests/declared-values.json against the driver-config.json beside
+    its tests directory. Each case gives an input name, a value, the verdict the
+    declaration must give ("declared") and the verdict the driver's own configuration
+    parser gives ("parser"); the driver's test suite checks the latter. The verdicts may
+    differ only in two documented ways:
+
+    - declared false, parser true, with a "note": the declaration is stricter than the
+      parser (for example, it requires the canonical URL form);
+    - declared true, parser false, with "undeclared": a driver rule the schema cannot
+      express. Listing it keeps the gap visible.
+    """
+    path = Path(path)
+    declaration = json.loads((path.parent.parent / "driver-config.json").read_text(encoding="utf-8"))
+    errors = config_errors(declaration)
+    if errors:
+        return [(f"driver-config.json#{at}", message) for at, message in errors]
+    inputs = {item["name"]: item for item in declaration["inputs"]}
+    suite = json.loads(path.read_text(encoding="utf-8"))
+    outcomes = {}
+    for index, case in enumerate(suite["cases"]):
+        at = pointer("cases", index)
+        item = inputs.get(case["input"])
+        if item is None:
+            errors.append((at, f"names no declared input: {case['input']!r}"))
+            continue
+        accepted = not value_errors(item, case["value"])
+        outcomes.setdefault(case["input"], set()).add(accepted)
+        if accepted != case["declared"]:
+            errors.append((at, f"the declaration {'accepts' if accepted else 'rejects'} this value, the case says otherwise"))
+        if case["declared"] and not case["parser"] and not case.get("undeclared"):
+            errors.append((at, "the declaration accepts a value the parser rejects; fix the declaration, "
+                               "or name the inexpressible rule in \"undeclared\""))
+        if not case["declared"] and case["parser"] and not case.get("note"):
+            errors.append((at, "the declaration is stricter than the parser here; say why in \"note\""))
+    for name, item in inputs.items():
+        if ("url" in item or "enum" in item) and outcomes.get(name) != {True, False}:
+            errors.append(("/cases", f"input {name!r} declares a value constraint, so it needs at least one accepted and one rejected case"))
+    return errors

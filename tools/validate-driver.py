@@ -6,6 +6,9 @@
   validate-driver.py release <dir> [--tag T]                driver-release.json, every asset and the OCI archive
   validate-driver.py fixtures                               run Drivers/schemas/tests/*.cases.json
 
+driver-config.json may use schemaVersion 1 or the proposed schemaVersion 2; each is
+validated against its own schema.
+
 Needs Python 3.11+ and jsonschema. Exits 1 and prints "<JSON Pointer>: <problem>" lines
 on failure, except with --report. Messages name fields, never input values.
 """
@@ -21,6 +24,7 @@ import driverhub_contract as contract
 
 FIXTURES = contract.SCHEMAS / "tests"
 CHECKLIST = "Drivers/RELEASING.md#driver-hub-checklist"
+V2_STATUS = "Drivers/RELEASING.md#declaration-schemaversion-2-proposed"
 
 
 def driver_directories():
@@ -57,6 +61,10 @@ def directory_findings(directory):
         else:
             errors = contract.config_errors(document)
             problems += [("driver-config.json", f"{at}: {message}") for at, message in errors]
+            version = contract.config_version(document)
+            if not errors and version not in contract.HUB_READS:
+                problems.append(("driver-config.json", f"/schemaVersion: version {version} is valid here, but no Driver Hub "
+                                                       f"release reads it yet, so Driver Hub refuses the declaration ({V2_STATUS})"))
             if not errors and "controlHealth" not in document:
                 notes.append(("driver-config.json", "no controlHealth, so Driver Hub shows communication as not observable"))
     return relative, problems, notes
@@ -128,10 +136,46 @@ def check_release(directory, tag):
     return True
 
 
+def run_value_fixtures(path, suite):
+    """Value cases: each names a declared input, an effective value and the expected
+    reason codes (an empty list means accepted). Returns (cases run, failures)."""
+    cases_run = failures = 0
+    outcomes = {}
+    for name, item in suite["inputs"].items():
+        declaration = {"schemaVersion": 2, "inputs": [{"name": name, **item}]}
+        errors = contract.config_errors(declaration)
+        if errors:
+            failures += 1
+            print(f"FAIL {path.name}: input {name!r} is not a valid declaration: {errors}", file=sys.stderr)
+    for case in suite["cases"]:
+        cases_run += 1
+        item = {"name": case["input"], **suite["inputs"][case["input"]]}
+        got = contract.value_errors(item, case["value"])
+        expected = sorted(case["errors"])
+        outcomes.setdefault(case["input"], set()).add(not expected)
+        undocumented = sorted(set(expected + got) - set(suite["reasons"]))
+        if undocumented:
+            failures += 1
+            print(f"FAIL {path.name}: reason codes missing from \"reasons\": {undocumented}", file=sys.stderr)
+        if got != expected:
+            failures += 1
+            print(f"FAIL {path.name}: {case['input']}: {case.get('note', '')} expected {expected}, got {got}", file=sys.stderr)
+    for name in suite["inputs"]:
+        if outcomes.get(name) != {True, False}:
+            failures += 1
+            print(f"FAIL {path.name}: input {name!r} needs at least one accepted and one rejected value", file=sys.stderr)
+    return cases_run, failures
+
+
 def run_fixtures():
     cases_run = failures = 0
     for path in sorted(FIXTURES.glob("*.cases.json")):
         suite = json.loads(path.read_text(encoding="utf-8"))
+        if suite["schema"] == "driver-config-values":
+            ran, failed = run_value_fixtures(path, suite)
+            cases_run += ran
+            failures += failed
+            continue
         check = {"driver-config": lambda d, _: contract.config_errors(d),
                  "driver-release": contract.release_errors}[suite["schema"]]
         rules = {}
