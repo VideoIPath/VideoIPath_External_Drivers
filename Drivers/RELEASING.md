@@ -286,7 +286,7 @@ A declaration is only useful if it matches the parser. Add `tests/declared-value
 - `declared` false and `parser` true, with a `note`: the declaration is stricter, for example because it requires canonical form.
 - `declared` true and `parser` false, with `undeclared` naming the rule: the parser checks something version 2 cannot express, such as a relation between two inputs. List every such rule, so the gap is visible to reviewers and to Driver Hub's maintainers.
 
-[tools/tests/test_declared_values.py](../tools/tests/test_declared_values.py) shows the file format.
+The Rust example's [declared-values.json](../examples/rust_example/tests/declared-values.json) and [declared_values.rs](../examples/rust_example/tests/declared_values.rs) show the pattern, including the rules its declaration cannot express.
 
 **Who checks what.** This repository checks that declarations are well formed and truthful, and ties each one to an immutable release by its SHA-256. Driver Hub reads version 1 and version 2, validates effective values before deployment or token reservation, shows the messages, and decides what to do about undeclared capabilities.
 
